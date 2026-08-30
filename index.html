@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ブラウザチャット</title>
+    <title>みんなのプラザ - バン対策強化版</title>
     <style>
         :root {
             --primary: #5865F2;
@@ -264,7 +264,7 @@
 
     <!-- 初回名前登録画面 -->
     <div id="setup-name-view" class="hidden">
-        <h1>👋 ようこそ！ブラウザチャットへ</h1>
+        <h1>👋 ようこそ！プラザへ</h1>
         <p style="text-align: center; color: var(--text-muted); font-size: 14px;">まずは、あなたのお名前（ニックネーム）を決めてね！</p>
         <hr>
         <div class="form-group" style="margin-top: 30px;">
@@ -278,12 +278,13 @@
     <div id="home-view" class="hidden">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; background: #1e1f22; padding: 10px 14px; border-radius: 8px; border: 1px solid var(--border); flex-wrap: wrap; gap: 8px;">
             <span id="current-user-display" style="font-size: 14px; font-weight: bold; color: var(--text);"></span>
-            <div style="display: flex; gap: 6px;">
-                <button style="width: auto; padding: 6px 12px; font-size: 12px; background-color: #f1c40f; color: #000;" onclick="openSwitchAccountModal()">🔄 アカウント切り替え</button>
-                <button class="danger-btn" style="width: auto; padding: 6px 12px; font-size: 12px;" onclick="logout()">🚪 ログアウト</button>
+            <!-- バンされている場合はアカウント切り替えやログアウトボタンを非表示にする -->
+            <div id="user-actions-container" style="display: flex; gap: 6px;">
+                <button id="switch-account-btn" style="width: auto; padding: 6px 12px; font-size: 12px; background-color: #f1c40f; color: #000;" onclick="openSwitchAccountModal()">🔄 アカウント切り替え</button>
+                <button id="logout-btn" class="danger-btn" style="width: auto; padding: 6px 12px; font-size: 12px;" onclick="logout()">🚪 ログアウト</button>
             </div>
         </div>
-        <h1>💬 ブラウザチャット</h1>
+        <h1>💬 みんなのプラザ</h1>
         <p style="text-align: center; color: var(--text-muted); font-size: 14px;">自由にサーバーを作って会話・写真共有しよう</p>
         
         <hr>
@@ -440,8 +441,8 @@
             <hr>
 
             <div class="form-group">
-                <label>🚫 ブラックリスト追加</label>
-                <input type="text" id="blacklist-input" placeholder="ブロックしたい人の名前">
+                <label>🚫 ブラックリスト追加（名前 or 端末ID）</label>
+                <input type="text" id="blacklist-input" placeholder="ブロックしたい人の名前または端末ID">
             </div>
             <button class="danger-btn" onclick="addToBlacklist()">ブラックリストに追加する</button>
 
@@ -459,12 +460,28 @@
 <script>
     const MASTER_ADMIN_PASSWORD = "takuto0629";
 
+    // ▼【重要】パスワードなしでブラウザ管理者メニューを開けるようにしたい人の名前をここに登録してください
+    const TRUSTED_ADMIN_NAMES = ["takuto", "管理者"];
+
+    // ブラウザごとの固有ID（端末ID）を発行・取得
+    let myDeviceID = localStorage.getItem('discord_plaza_device_id');
+    if (!myDeviceID) {
+        myDeviceID = 'device_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+        localStorage.setItem('discord_plaza_device_id', myDeviceID);
+    }
+
     let rooms = JSON.parse(localStorage.getItem('discord_plaza_rooms')) || [];
     let blacklist = JSON.parse(localStorage.getItem('discord_plaza_blacklist')) || [];
     let globalAdmins = JSON.parse(localStorage.getItem('discord_plaza_global_admin_users')) || [];
     let currentRoomId = null;
     let currentUser = localStorage.getItem('discord_plaza_my_name') || "";
     let isGlobalAdmin = sessionStorage.getItem('discord_plaza_global_admin') === 'true';
+
+    function checkTrustedAdmin() {
+        if (!currentUser) return false;
+        const baseName = currentUser.split('#')[0];
+        return TRUSTED_ADMIN_NAMES.some(trusted => baseName.includes(trusted));
+    }
 
     if (isGlobalAdmin && currentUser && !globalAdmins.includes(currentUser)) {
         globalAdmins.push(currentUser);
@@ -488,31 +505,55 @@
     });
 
     function isMemberGlobalAdmin(memberName) {
-        return globalAdmins.includes(memberName);
+        return globalAdmins.includes(memberName) || TRUSTED_ADMIN_NAMES.some(t => memberName.includes(t));
     }
 
-    // パスワードの表示/非表示を切り替える関数（─＝閉じている/非表示、👁️＝開いている/表示中）
     function togglePasswordVisibility(fieldId, btnElement) {
         const input = document.getElementById(fieldId);
         if (input.type === "password") {
             input.type = "text";
-            btnElement.textContent = "👁️"; // 開いている時（テキストが見える状態）
+            btnElement.textContent = "👁️"; 
         } else {
             input.type = "password";
-            btnElement.textContent = "─"; // 閉じている時（隠れている状態）
+            btnElement.textContent = "─"; 
         }
     }
 
     function checkUserAccess() {
-        if (currentUser && blacklist.includes(currentUser)) {
-            document.body.innerHTML = `
-                <div style="color: white; text-align: center; margin-top: 100px; font-family: sans-serif;">
-                    <h1 style="color: #ed4245;">🚫 アクセスが拒否されました</h1>
-                    <p>あなたの名前「${escapeHtml(currentUser)}」はブラックリストに登録されているため、このプラザを利用できません。</p>
+        // 名前または端末IDがブラックリストに入っているかチェック
+        const isBanned = blacklist.includes(currentUser) || blacklist.includes(myDeviceID);
+        
+        if (currentUser && isBanned) {
+            // バンされている場合は専用の画面を表示し、ログアウトや名前変更ボタンを一切隠す・排除する
+            document.getElementById('setup-name-view').classList.add('hidden');
+            document.getElementById('room-view').classList.add('hidden');
+            document.getElementById('auth-view').classList.add('hidden');
+            document.getElementById('home-view').classList.remove('hidden');
+
+            // 画面を書き換えてアクセス拒否と理由を表示
+            document.getElementById('current-user-display').innerHTML = `🚫 アカウント: <strong style="color: #ed4245;">${escapeHtml(currentUser)} (アクセス禁止)</strong>`;
+            
+            // ログアウトボタン・アカウント切り替えボタンを強制非表示
+            document.getElementById('user-actions-container').classList.add('hidden');
+
+            // メインコンテンツエリアをバン専用のメッセージに書き換え
+            document.getElementById('home-view').innerHTML = `
+                <div style="text-align: center; margin-top: 40px; padding: 20px;">
+                    <h1 style="color: #ed4245;">🚫 アクセスが制限されています</h1>
+                    <p style="color: var(--text-muted); font-size: 14px; margin-bottom: 20px;">
+                        このアカウント（${escapeHtml(currentUser)}）またはこのブラウザ（端末）はブラックリストに登録されているため、プラザを利用できません。<br>
+                        ※セキュリティ保護のため、ログアウトや名前の変更はできません。
+                    </p>
+                    <div style="background: #1e1f22; padding: 15px; border-radius: 8px; border: 1px solid var(--border); display: inline-block; text-align: left;">
+                        <span style="font-size: 12px; color: var(--text-muted);">端末ID: ${myDeviceID}</span>
+                    </div>
                 </div>
             `;
             return;
         }
+
+        // 通常時の表示復旧（もしバン状態から解除された場合などに対応）
+        document.getElementById('user-actions-container').classList.remove('hidden');
 
         if (!currentUser) {
             document.getElementById('setup-name-view').classList.remove('hidden');
@@ -529,7 +570,7 @@
                 document.getElementById('room-view').classList.add('hidden');
                 renderRoomList();
             }
-            const isMeGlobal = isGlobalAdmin || isMemberGlobalAdmin(currentUser);
+            const isMeGlobal = isGlobalAdmin || isMemberGlobalAdmin(currentUser) || checkTrustedAdmin();
             document.getElementById('current-user-display').innerHTML = `👤 ログイン中: <strong style="color: #5865F2;">${escapeHtml(currentUser)}</strong> ${isMeGlobal ? '<span style="color: #f1c40f; font-size: 11px;">(👑 ブラウザ管理者)</span>' : ''}`;
         }
     }
@@ -544,8 +585,8 @@
         const randomSuffix = '#' + Math.floor(1000 + Math.random() * 9000);
         currentUser = nameInput + randomSuffix;
 
-        if (blacklist.includes(currentUser)) {
-            alert('この名前はブラックリストに登録されているため使用できません！');
+        if (blacklist.includes(currentUser) || blacklist.includes(myDeviceID)) {
+            alert('このデバイスまたは名前はブラックリストに登録されているため使用できません！');
             return;
         }
 
@@ -554,6 +595,12 @@
     }
 
     function logout() {
+        // バンされている場合は実行できないようにガード
+        if (blacklist.includes(currentUser) || blacklist.includes(myDeviceID)) {
+            alert('アクセスが制限されているためログアウトできません。');
+            return;
+        }
+
         if (confirm('ログアウトしますか？')) {
             localStorage.removeItem('discord_plaza_my_name');
             currentUser = "";
@@ -563,6 +610,12 @@
     }
 
     function openSwitchAccountModal() {
+        // バンされている場合は切り替え画面を開かせない
+        if (blacklist.includes(currentUser) || blacklist.includes(myDeviceID)) {
+            alert('アクセスが制限されているためアカウントを変更できません。');
+            return;
+        }
+
         document.getElementById('switch-name-input').value = '';
         document.getElementById('switch-account-modal').classList.remove('hidden');
     }
@@ -572,6 +625,11 @@
     }
 
     function switchAccount() {
+        if (blacklist.includes(currentUser) || blacklist.includes(myDeviceID)) {
+            alert('アクセスが制限されているためアカウントを変更できません。');
+            return;
+        }
+
         let nameInput = document.getElementById('switch-name-input').value.trim();
         if (!nameInput) {
             alert('新しいお名前を入力してください！');
@@ -581,8 +639,8 @@
         const randomSuffix = '#' + Math.floor(1000 + Math.random() * 9000);
         const newName = nameInput + randomSuffix;
 
-        if (blacklist.includes(newName)) {
-            alert('この名前はブラックリストに登録されているため使用できません！');
+        if (blacklist.includes(newName) || blacklist.includes(myDeviceID)) {
+            alert('このデバイスまたは名前はブラックリストに登録されているため使用できません！');
             return;
         }
 
@@ -612,7 +670,7 @@
                     return;
                 }
                 
-                const isMeGlobal = isGlobalAdmin || isMemberGlobalAdmin(currentUser);
+                const isMeGlobal = isGlobalAdmin || isMemberGlobalAdmin(currentUser) || checkTrustedAdmin();
                 if (!isMeGlobal) {
                     if (!room.members.includes(currentUser)) {
                         alert('サーバーからキックされました');
@@ -646,8 +704,9 @@
 
     function openGlobalAdminModal() {
         document.getElementById('global-admin-modal').classList.remove('hidden');
-        const isMeGlobal = isGlobalAdmin || isMemberGlobalAdmin(currentUser);
-        if (isMeGlobal) {
+        const isMeGlobal = isGlobalAdmin || isMemberGlobalAdmin(currentUser) || checkTrustedAdmin();
+        
+        if (isMeGlobal || checkTrustedAdmin()) {
             document.getElementById('admin-login-section').classList.add('hidden');
             document.getElementById('admin-panel-section').classList.remove('hidden');
             renderBlacklist();
@@ -664,7 +723,7 @@
 
     function checkAdminPassword() {
         const pass = document.getElementById('admin-password-input').value;
-        if (pass === MASTER_ADMIN_PASSWORD) {
+        if (pass === MASTER_ADMIN_PASSWORD || checkTrustedAdmin()) {
             isGlobalAdmin = true;
             sessionStorage.setItem('discord_plaza_global_admin', 'true');
             
@@ -709,23 +768,23 @@
     }
 
     function addToBlacklist() {
-        const name = document.getElementById('blacklist-input').value.trim();
-        if (!name) return;
+        const target = document.getElementById('blacklist-input').value.trim();
+        if (!target) return;
 
-        if (!blacklist.includes(name)) {
-            blacklist.push(name);
+        if (!blacklist.includes(target)) {
+            blacklist.push(target);
             saveBlacklist();
             renderBlacklist();
             document.getElementById('blacklist-input').value = '';
-            alert(`「${name}」をブラックリストに追加しました。`);
+            alert(`「${target}」をブラックリスト（名前または端末ID）に追加しました。`);
         }
     }
 
-    function removeFromBlacklist(name) {
-        blacklist = blacklist.filter(n => n !== name);
+    function removeFromBlacklist(target) {
+        blacklist = blacklist.filter(n => n !== target);
         saveBlacklist();
         renderBlacklist();
-        alert(`「${name}」をブラックリストから解除しました。`);
+        alert(`「${target}」をブラックリストから解除しました。`);
     }
 
     function renderBlacklist() {
@@ -737,12 +796,12 @@
             return;
         }
 
-        blacklist.forEach(name => {
+        blacklist.forEach(target => {
             const div = document.createElement('div');
             div.className = 'blacklist-item';
             div.innerHTML = `
-                <span>${escapeHtml(name)}</span>
-                <button class="back-btn" style="padding: 2px 8px; font-size: 11px; margin: 0;" onclick="removeFromBlacklist('${escapeHtml(name)}')">解除</button>
+                <span style="word-break: break-all; font-size: 12px;">${escapeHtml(target)}</span>
+                <button class="back-btn" style="padding: 2px 8px; font-size: 11px; margin: 0;" onclick="removeFromBlacklist('${escapeHtml(target)}')">解除</button>
             `;
             container.appendChild(div);
         });
@@ -819,7 +878,7 @@
         const room = rooms.find(r => r.id === roomId);
         if (!room) return;
 
-        const isMeGlobal = isGlobalAdmin || isMemberGlobalAdmin(currentUser);
+        const isMeGlobal = isGlobalAdmin || isMemberGlobalAdmin(currentUser) || checkTrustedAdmin();
         if (isMeGlobal) {
             if (confirm(`【ブラウザ管理者権限】サーバー「${room.name}」を強制削除しますか？`)) {
                 rooms = rooms.filter(r => r.id !== roomId);
@@ -848,7 +907,7 @@
         const room = rooms.find(r => r.id === currentRoomId);
         if (!room) return;
 
-        const isMeGlobal = isGlobalAdmin || isMemberGlobalAdmin(currentUser);
+        const isMeGlobal = isGlobalAdmin || isMemberGlobalAdmin(currentUser) || checkTrustedAdmin();
         if (isMeGlobal) {
             if (confirm(`【ブラウザ管理者権限】現在のサーバー「${room.name}」を強制削除しますか？`)) {
                 rooms = rooms.filter(r => r.id !== currentRoomId);
@@ -879,7 +938,7 @@
         currentRoomId = roomId;
         const room = rooms.find(r => r.id === roomId);
         
-        const isMeGlobal = isGlobalAdmin || isMemberGlobalAdmin(currentUser);
+        const isMeGlobal = isGlobalAdmin || isMemberGlobalAdmin(currentUser) || checkTrustedAdmin();
         const isRoomAdmin = (room.creator === currentUser || (room.admins && room.admins.includes(currentUser)));
         if (!room.pass || room.pass === "" || isMeGlobal || isRoomAdmin) {
             enterRoomDirectly();
@@ -907,7 +966,7 @@
     function enterRoomDirectly() {
         const room = rooms.find(r => r.id === currentRoomId);
         
-        const isMeGlobal = isGlobalAdmin || isMemberGlobalAdmin(currentUser);
+        const isMeGlobal = isGlobalAdmin || isMemberGlobalAdmin(currentUser) || checkTrustedAdmin();
         const isRoomAdmin = (room.creator === currentUser || (room.admins && room.admins.includes(currentUser)));
         if (!room.members.includes(currentUser)) {
             if (!isMeGlobal && !isRoomAdmin && room.members.length >= room.limit) {
@@ -931,7 +990,7 @@
         const room = rooms.find(r => r.id === currentRoomId);
         if (!room) return;
 
-        const isMeGlobal = isGlobalAdmin || isMemberGlobalAdmin(currentUser);
+        const isMeGlobal = isGlobalAdmin || isMemberGlobalAdmin(currentUser) || checkTrustedAdmin();
         const badge = document.getElementById('admin-badge');
         if (isMeGlobal) {
             badge.classList.remove('hidden');
@@ -986,8 +1045,8 @@
             return;
         }
 
-        const isTargetGlobal = globalAdmins.includes(memberName);
-        const isMeGlobal = isGlobalAdmin || isMemberGlobalAdmin(currentUser);
+        const isTargetGlobal = globalAdmins.includes(memberName) || TRUSTED_ADMIN_NAMES.some(t => memberName.includes(t));
+        const isMeGlobal = isGlobalAdmin || isMemberGlobalAdmin(currentUser) || checkTrustedAdmin();
         const isOwner = (room.creator === currentUser);
         const isAdmin = (room.admins && room.admins.includes(currentUser));
 
@@ -1067,7 +1126,7 @@
         const room = rooms.find(r => r.id === currentRoomId);
         if (!room) return;
 
-        const isMeGlobal = isGlobalAdmin || isMemberGlobalAdmin(currentUser);
+        const isMeGlobal = isGlobalAdmin || isMemberGlobalAdmin(currentUser) || checkTrustedAdmin();
         if (!isMeGlobal && !room.members.includes(currentUser)) {
             goHome();
             return;
@@ -1099,7 +1158,7 @@
             const div = document.createElement('div');
             div.className = 'member-item';
             
-            const isTargetGlobal = globalAdmins.includes(member);
+            const isTargetGlobal = globalAdmins.includes(member) || TRUSTED_ADMIN_NAMES.some(t => member.includes(t));
             let badges = [];
             
             if (member === room.creator) {
@@ -1172,7 +1231,7 @@
         const room = rooms.find(r => r.id === currentRoomId);
         if (!room) return;
 
-        const isMeGlobal = isGlobalAdmin || isMemberGlobalAdmin(currentUser);
+        const isMeGlobal = isGlobalAdmin || isMemberGlobalAdmin(currentUser) || checkTrustedAdmin();
         const isRoomAdmin = (isMeGlobal || room.creator === currentUser || (room.admins && room.admins.includes(currentUser)));
         if (!isRoomAdmin && chatUser !== currentUser) {
             alert('自分が送信したメッセージか、サーバー管理者しか削除できません！');
@@ -1196,7 +1255,7 @@
             return;
         }
 
-        const isMeGlobal = isGlobalAdmin || isMemberGlobalAdmin(currentUser);
+        const isMeGlobal = isGlobalAdmin || isMemberGlobalAdmin(currentUser) || checkTrustedAdmin();
         const isRoomAdmin = (isMeGlobal || room.creator === currentUser || (room.admins && room.admins.includes(currentUser)));
 
         room.chats.forEach(chat => {
@@ -1299,7 +1358,7 @@
         const room = rooms.find(r => r.id === currentRoomId);
         if (!room) return;
 
-        const isMeGlobal = isGlobalAdmin || isMemberGlobalAdmin(currentUser);
+        const isMeGlobal = isGlobalAdmin || isMemberGlobalAdmin(currentUser) || checkTrustedAdmin();
         const isRoomAdmin = (isMeGlobal || room.creator === currentUser || (room.admins && room.admins.includes(currentUser)));
         if (!isRoomAdmin && postUser !== currentUser) {
             alert('自分が投稿した内容か、サーバー管理者しか削除できません！');
@@ -1323,7 +1382,7 @@
             return;
         }
 
-        const isMeGlobal = isGlobalAdmin || isMemberGlobalAdmin(currentUser);
+        const isMeGlobal = isGlobalAdmin || isMemberGlobalAdmin(currentUser) || checkTrustedAdmin();
         const isRoomAdmin = (isMeGlobal || room.creator === currentUser || (room.admins && room.admins.includes(currentUser)));
 
         room.posts.forEach(post => {

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ブラウザチャット</title>
+    <title>ブラウザチャット（完全同期・メディア統合版）</title>
     <style>
         :root {
             --primary: #5865F2;
@@ -510,7 +510,6 @@
     });
 
     function initFirestoreListeners() {
-        // ルーム一覧・チャット・投稿のリアルタイム同期
         onSnapshot(collection(db, "rooms"), (snapshot) => {
             rooms = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
             if (currentRoomId) {
@@ -542,7 +541,6 @@
             renderRoomList();
         });
 
-        // システム設定（ブラックリスト・管理者等）のリアルタイム同期
         onSnapshot(doc(db, "system", "config"), (docSnap) => {
             if (docSnap.exists()) {
                 const data = docSnap.data();
@@ -1035,7 +1033,6 @@
         container.scrollTop = container.scrollHeight;
     }
 
-    // 複数ファイルを「1つの投稿にまとめて」送信する新機能
     window.createPostUnified = async function() {
         const fileInput = document.getElementById('post-files');
         const desc = document.getElementById('post-desc').value.trim();
@@ -1086,7 +1083,7 @@
         const newPost = {
             id: 'post_' + Date.now(),
             user: currentUser,
-            mediaList: mediaList, // 複数メディアを配列で保持
+            mediaList: mediaList,
             desc: desc,
             date: new Date().toLocaleString()
         };
@@ -1123,7 +1120,6 @@
             div.className = 'post-card';
 
             let mediaHtml = '';
-            // 複数メディアを綺麗にグリッド表示、動画も確実に再生可能に
             if (post.mediaList && post.mediaList.length > 0) {
                 mediaHtml = '<div class="media-grid">';
                 post.mediaList.forEach(m => {
@@ -1135,7 +1131,6 @@
                 });
                 mediaHtml += '</div>';
             } else if (post.mediaUrl) {
-                // 互換性維持（古い個別投稿データ対策）
                 if (post.mediaType === 'video') {
                     mediaHtml = `<video src="${post.mediaUrl}" controls class="post-media"></video>`;
                 } else {

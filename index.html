@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ブラウザチャット（ImgBB・メディア拡張版）</title>
+    <title>ブラウザチャット（完全権限・メディア・UI改善版）</title>
     <style>
         :root {
             --primary: #5865F2;
@@ -186,7 +186,6 @@
         .chat-user {
             font-weight: bold;
             color: #5865F2;
-            margin-right: 6px;
         }
         .member-item {
             font-size: 13px;
@@ -195,6 +194,9 @@
             margin-bottom: 6px;
             background: #2b2d31;
             border: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
         }
         .post-card {
             border: 1px solid var(--border);
@@ -254,58 +256,52 @@
             max-width: 450px;
             border: 1px solid var(--border);
         }
-        /* 画像ビューアモーダル用スタイル */
+        
+        /* 画像ビューア（左右ボタンを撤廃し、完全にスッキリさせました） */
         .viewer-modal {
             position: fixed;
-            top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0, 0, 0, 0.9);
+            top: 0; left: 0; width: 100vw; height: 100vh;
+            background: rgba(0, 0, 0, 0.95);
             display: flex;
             justify-content: center;
             align-items: center;
             z-index: 2000;
+            box-sizing: border-box;
+            padding: 60px 80px;
         }
-        .viewer-content {
+        .viewer-content-wrapper {
             position: relative;
-            max-width: 90vw;
-            max-height: 90vh;
+            max-width: 100%;
+            max-height: 100%;
             display: flex;
             justify-content: center;
             align-items: center;
         }
-        .viewer-content img, .viewer-content video {
-            max-width: 85vw;
-            max-height: 85vh;
+        .viewer-content-wrapper img, .viewer-content-wrapper video {
+            max-width: 100%;
+            max-height: 100vh;
+            width: auto;
+            height: auto;
             object-fit: contain;
             border-radius: 8px;
+            display: block;
         }
-        .viewer-arrow {
-            position: absolute;
-            top: 50%;
-            transform: translateY(-50%);
-            background: rgba(0, 0, 0, 0.6);
-            color: white;
-            border: 2px solid rgba(255, 255, 255, 0.8);
-            padding: 12px 18px;
-            font-size: 20px;
-            cursor: pointer;
-            border-radius: 50%;
-            z-index: 2001;
-            user-select: none;
-        }
-        .viewer-arrow:hover {
-            background: rgba(88, 101, 242, 0.9);
-        }
-        #viewer-prev { left: -60px; }
-        #viewer-next { right: -60px; }
         .viewer-close {
-            position: absolute;
-            top: -45px;
-            right: 0;
-            background: none;
-            border: none;
+            position: fixed;
+            top: 20px;
+            right: 25px;
+            background: rgba(0,0,0,0.6);
+            border: 2px solid white;
             color: white;
-            font-size: 28px;
+            font-size: 20px;
+            width: 45px;
+            height: 45px;
+            border-radius: 50%;
             cursor: pointer;
+            z-index: 2006;
+            display: flex;
+            justify-content: center;
+            align-items: center;
         }
         .download-btn {
             display: inline-block;
@@ -330,6 +326,18 @@
             margin-bottom: 6px;
             font-size: 13px;
         }
+        .badge {
+            font-size: 10px;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-weight: bold;
+            margin-left: 4px;
+            display: inline-block;
+            vertical-align: middle;
+        }
+        .badge-owner { background-color: #f1c40f; color: #000; }
+        .badge-admin { background-color: #3498db; color: #fff; }
+        .badge-global { background-color: #9b59b6; color: #fff; }
     </style>
 </head>
 <body>
@@ -361,7 +369,7 @@
                 <button id="logout-btn" class="danger-btn" style="width: auto; padding: 6px 12px; font-size: 12px;" onclick="logout()">🚪 ログアウト</button>
             </div>
         </div>
-        <h1>💬 ブラウザチャット</h1>
+        <h1>💬💬💬💬💬💬💬💬💬💬 ブラウザチャット</h1>
         <p style="text-align: center; color: var(--text-muted); font-size: 14px;">自由にサーバーを作って会話・写真・動画共有しよう</p>
         
         <hr>
@@ -414,8 +422,8 @@
     <!-- サーバー内（チャット・投稿画面） -->
     <div id="room-view" class="hidden">
         <div style="display: flex; justify-content: space-between; align-items: center;">
-            <button class="back-btn" onclick="leaveRoom()">← サーバー一覧へ戻る</button>
-            <button class="danger-btn" style="width: auto; padding: 6px 12px; font-size: 12px; margin-bottom: 16px;" onclick="leaveRoom()">🚪 サーバーから退出する</button>
+            <button class="back-btn" onclick="goHome()">← サーバー一覧へ戻る</button>
+            <button class="danger-btn" style="width: auto; padding: 6px 12px; font-size: 12px; margin-bottom: 16px;" onclick="goHome()">🚪 サーバーから退出する</button>
         </div>
         <h2 id="current-room-title">サーバー名</h2>
         <div id="admin-badge" style="text-align: center; font-size: 13px; color: var(--admin-gold); margin-bottom: 15px;" class="hidden">👑 【ブラウザ管理者モード発動中】すべてのサーバーを完全掌握しています。どんなメンバーでも自由にキック可能です！</div>
@@ -434,7 +442,7 @@
 
                 <hr>
 
-                <h3 style="text-align: left; margin-bottom: 8px;">📸 写真・動画の共有（最大10個まで一括送信OK）</h3>
+                <h3 style="text-align: left; margin-bottom: 8px;">📸 写真・動画の共有（画像も動画もOK！）</h3>
                 <div style="background: #1e1f22; padding: 16px; border-radius: 8px; border: 1px solid var(--border); margin-bottom: 20px;">
                     <div class="form-group">
                         <label>写真または動画ファイル（複数選択可・最大10個）</label>
@@ -478,15 +486,11 @@
     </div>
 </div>
 
-<!-- 画像・動画 拡大表示モーダル（左右の矢印付き） -->
+<!-- 画像・動画 拡大表示モーダル（左右ボタン削除・矢印キー操作版） -->
 <div id="media-viewer-modal" class="viewer-modal hidden">
-    <div class="viewer-content">
-        <button class="viewer-close" onclick="closeMediaViewer()">✕</button>
-        <button class="viewer-arrow" id="viewer-prev" onclick="slideMedia(-1)">‹</button>
-        <div id="viewer-media-container" style="display: flex; justify-content: center; align-items: center; width: 100%; height: 100%;">
-            <!-- 拡大中のメディア -->
-        </div>
-        <button class="viewer-arrow" id="viewer-next" onclick="slideMedia(1)">›</button>
+    <button class="viewer-close" onclick="closeMediaViewer()">✕</button>
+    <div class="viewer-content-wrapper" id="viewer-media-container">
+        <!-- 拡大中のメディアがここに入る -->
     </div>
 </div>
 
@@ -568,9 +572,7 @@
     const db = getFirestore(app);
     const auth = getAuth(app);
 
-    // ImgBBのAPIキー
     const IMGBB_API_KEY = "6fdb3e91f169dec839229956d1b14e10";
-
     const MASTER_ADMIN_PASSWORD = "takuto0629";
     const TRUSTED_ADMIN_NAMES = ["takuto", "管理者"];
 
@@ -589,7 +591,6 @@
     let currentUser = localStorage.getItem('discord_plaza_my_name') || "";
     let isGlobalAdmin = sessionStorage.getItem('discord_plaza_global_admin') === 'true';
 
-    // 拡大ビューア用の変数
     let currentViewerMediaList = [];
     let currentViewerIndex = 0;
 
@@ -610,18 +611,9 @@
                     return;
                 }
                 
-                const isMeGlobal = isGlobalAdmin || isMemberGlobalAdmin(currentUser) || checkTrustedAdmin();
-                if (!isMeGlobal) {
-                    if (!room.members || !room.members.includes(currentUser)) {
-                        alert('サーバーからキックされました');
-                        goHome();
-                        return;
-                    }
-                } else {
-                    if (room.members && !room.members.includes(currentUser)) {
-                        room.members.push(currentUser);
-                        updateDoc(doc(db, "rooms", currentRoomId), { members: room.members });
-                    }
+                if (room.members && !room.members.includes(currentUser)) {
+                    room.members.push(currentUser);
+                    updateDoc(doc(db, "rooms", currentRoomId), { members: room.members });
                 }
                 
                 renderChats();
@@ -658,6 +650,40 @@
 
     window.isMemberGlobalAdmin = function(memberName) {
         return globalAdmins.includes(memberName) || TRUSTED_ADMIN_NAMES.some(t => memberName.includes(t));
+    }
+
+    window.getUserRole = function(room, memberName) {
+        if (isMemberGlobalAdmin(memberName)) return 'global';
+        if (room && room.creator === memberName) return 'owner';
+        if (room && room.admins && room.admins.includes(memberName)) return 'admin';
+        return 'member';
+    }
+
+    window.renderUserBadgesHTML = function(room, memberName) {
+        let html = '';
+        const isGlobal = isMemberGlobalAdmin(memberName);
+        const isOwner = room && room.creator === memberName;
+        const isAdmin = room && room.admins && room.admins.includes(memberName);
+
+        if (isGlobal) {
+            html += '<span class="badge badge-global">👑 ブラウザ管理者</span>';
+        }
+        if (isOwner) {
+            html += '<span class="badge badge-owner">オーナー</span>';
+        } else if (isAdmin) {
+            html += '<span class="badge badge-admin">管理者</span>';
+        }
+        return html;
+    }
+
+    window.canDeleteMessageOrPost = function(room, authorName) {
+        if (!currentUser) return false;
+        const isMeGlobal = isGlobalAdmin || isMemberGlobalAdmin(currentUser) || checkTrustedAdmin();
+        const isOwner = room && room.creator === currentUser;
+        const isRoomAdmin = room && room.admins && room.admins.includes(currentUser);
+        const isAuthor = authorName === currentUser;
+
+        return isMeGlobal || isOwner || isRoomAdmin || isAuthor;
     }
 
     window.togglePasswordVisibility = function(fieldId, btnElement) {
@@ -882,7 +908,7 @@
             creator: currentUser,
             admins: [],
             limit: limit,
-            members: [],
+            members: [currentUser],
             chats: [],
             posts: []
         };
@@ -1013,15 +1039,6 @@
         }
     }
 
-    window.leaveRoom = async function() {
-        const room = rooms.find(r => r.id === currentRoomId);
-        if (room && room.members) {
-            room.members = room.members.filter(m => m !== currentUser);
-            await updateDoc(doc(db, "rooms", currentRoomId), { members: room.members });
-        }
-        goHome();
-    }
-
     window.kickMember = async function(memberName) {
         const room = rooms.find(r => r.id === currentRoomId);
         if (!room || memberName === currentUser) return;
@@ -1032,19 +1049,50 @@
         }
     }
 
+    window.toggleAdminRole = async function(memberName) {
+        const room = rooms.find(r => r.id === currentRoomId);
+        if (!room || room.creator === memberName) return;
+        if (!room.admins) room.admins = [];
+        
+        if (room.admins.includes(memberName)) {
+            room.admins = room.admins.filter(a => a !== memberName);
+            alert(`「${memberName}」の管理者権限を解除しました。`);
+        } else {
+            room.admins.push(memberName);
+            alert(`「${memberName}」をサーバー管理者に任命しました！`);
+        }
+        await updateDoc(doc(db, "rooms", currentRoomId), { admins: room.admins });
+    }
+
     function renderMembers() {
         const room = rooms.find(r => r.id === currentRoomId);
         if (!room) return;
         const container = document.getElementById('member-list-container');
         container.innerHTML = '';
-        (room.members || []).forEach(member => {
+        
+        const members = room.members || [];
+        document.getElementById('member-count-title').innerText = `🟢 参加中メンバー (${members.length}/${room.limit})`;
+
+        members.forEach(member => {
+            const role = getUserRole(room, member);
+            const badgesHtml = renderUserBadgesHTML(room, member);
+
             const div = document.createElement('div');
             div.className = 'member-item';
+            
             let actionBtns = '';
-            if (member !== currentUser && (room.creator === currentUser || isGlobalAdmin)) {
-                actionBtns = `<button class="danger-btn" style="padding:2px 6px; font-size:10px; width:auto;" onclick="kickMember('${member}')">キック</button>`;
+            const isMeOwner = (room.creator === currentUser);
+            const isMeGlobal = isGlobalAdmin || isMemberGlobalAdmin(currentUser) || checkTrustedAdmin();
+
+            if (member !== currentUser && (isMeOwner || isMeGlobal)) {
+                if (role !== 'owner') {
+                    const adminBtnText = role === 'admin' ? '管理者解除' : '管理者任命';
+                    actionBtns += `<button style="background:#3498db; padding:2px 6px; font-size:10px; width:auto; margin-right:4px;" onclick="toggleAdminRole('${member}')">${adminBtnText}</button>`;
+                }
+                actionBtns += `<button class="danger-btn" style="padding:2px 6px; font-size:10px; width:auto;" onclick="kickMember('${member}')">キック</button>`;
             }
-            div.innerHTML = `👤 ${escapeHtml(member)} ${actionBtns}`;
+
+            div.innerHTML = `<span style="word-break:break-all;">👤 ${escapeHtml(member)} ${badgesHtml}</span> <div style="display:flex; gap:2px;">${actionBtns}</div>`;
             container.appendChild(div);
         });
     }
@@ -1076,7 +1124,15 @@
     window.deleteChat = async function(chatId) {
         const room = rooms.find(r => r.id === currentRoomId);
         if (!room) return;
-        room.chats = (room.chats || []).filter(c => c.id !== chatId);
+        const chat = (room.chats || []).find(c => c.id === chatId);
+        if (!chat) return;
+
+        if (!canDeleteMessageOrPost(room, chat.user)) {
+            alert('このメッセージを削除する権限がありません！');
+            return;
+        }
+
+        room.chats = room.chats.filter(c => c.id !== chatId);
         await updateDoc(doc(db, "rooms", currentRoomId), { chats: room.chats });
     }
 
@@ -1086,21 +1142,32 @@
         const container = document.getElementById('chat-container');
         container.innerHTML = '';
         (room.chats || []).forEach(chat => {
+            const badgesHtml = renderUserBadgesHTML(room, chat.user);
+            const canDelete = canDeleteMessageOrPost(room, chat.user);
+
             const div = document.createElement('div');
             div.className = 'chat-msg';
             div.innerHTML = `
                 <div style="flex-grow:1; word-break:break-all;">
-                    <span class="chat-user">${escapeHtml(chat.user)}</span> <span style="font-size:11px; color:var(--text-muted);">${chat.date}</span>
+                    <span class="chat-user">${escapeHtml(chat.user)}</span> ${badgesHtml} <span style="font-size:11px; color:var(--text-muted);">${chat.date}</span>
                     <div style="margin-top:4px;">${escapeHtml(chat.text)}</div>
                 </div>
-                <button class="danger-btn" style="width:auto; padding:2px 8px; font-size:11px;" onclick="deleteChat('${chat.id}')">削除</button>
+                ${canDelete ? `<button class="danger-btn" style="width:auto; padding:2px 8px; font-size:11px;" onclick="deleteChat('${chat.id}')">削除</button>` : ''}
             `;
             container.appendChild(div);
         });
         container.scrollTop = container.scrollHeight;
     }
 
-    // ImgBBにファイルをアップロードするヘルパー関数
+    async function convertFileToBase64(file) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = error => reject(error);
+            reader.readAsDataURL(file);
+        });
+    }
+
     async function uploadToImgBB(file) {
         const formData = new FormData();
         formData.append("image", file);
@@ -1117,7 +1184,6 @@
         }
     }
 
-    // 一括投稿処理（最大10個まで・ImgBB使用で容量制限回避）
     window.createPostUnified = async function() {
         const fileInput = document.getElementById('post-files');
         const desc = document.getElementById('post-desc').value.trim();
@@ -1143,11 +1209,24 @@
         try {
             let mediaList = [];
             for (let file of files) {
-                const fileUrl = await uploadToImgBB(file);
-                const fileType = file.type.startsWith('video') ? 'video' : 'image';
+                let fileUrl = '';
+                const isVideo = file.type.startsWith('video');
+                
+                if (isVideo) {
+                    if (file.size > 15 * 1024 * 1024) {
+                        alert(`動画「${file.name}」のサイズが大きすぎます（15MB以下にしてください）。`);
+                        submitBtn.disabled = false;
+                        submitBtn.textContent = '一括投稿する';
+                        return;
+                    }
+                    fileUrl = await convertFileToBase64(file);
+                } else {
+                    fileUrl = await uploadToImgBB(file);
+                }
+
                 mediaList.push({
                     url: fileUrl,
-                    type: fileType
+                    type: isVideo ? 'video' : 'image'
                 });
             }
 
@@ -1203,7 +1282,15 @@
     window.deletePost = async function(postId) {
         const room = rooms.find(r => r.id === currentRoomId);
         if (!room) return;
-        room.posts = (room.posts || []).filter(p => p.id !== postId);
+        const post = (room.posts || []).find(p => p.id === postId);
+        if (!post) return;
+
+        if (!canDeleteMessageOrPost(room, post.user)) {
+            alert('この投稿を削除する権限がありません！');
+            return;
+        }
+
+        room.posts = room.posts.filter(p => p.id !== postId);
         await updateDoc(doc(db, "rooms", currentRoomId), { posts: room.posts });
     }
 
@@ -1219,11 +1306,13 @@
         }
 
         room.posts.forEach(post => {
+            const badgesHtml = renderUserBadgesHTML(room, post.user);
+            const canDelete = canDeleteMessageOrPost(room, post.user);
+
             const div = document.createElement('div');
             div.className = 'post-card';
 
             let mediaHtml = '';
-            // 投稿内のメディアリストを全件描画（タップで拡大表示できるようにdata属性にリストを保持）
             const mediaArrayJson = JSON.stringify(post.mediaList || []).replace(/"/g, '&quot;');
 
             if (post.mediaList && post.mediaList.length > 0) {
@@ -1244,19 +1333,12 @@
                     }
                 });
                 mediaHtml += '</div>';
-            } else if (post.mediaUrl) {
-                // 互換性維持
-                if (post.mediaType === 'video') {
-                    mediaHtml = `<video src="${post.mediaUrl}" controls class="post-media"></video>`;
-                } else {
-                    mediaHtml = `<img src="${post.mediaUrl}" class="post-media" onclick="openMediaViewer([{url: '${post.mediaUrl}', type: 'image'}], 0)">`;
-                }
             }
 
             div.innerHTML = `
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-                    <span style="font-size: 12px; color: var(--text-muted);">投稿者: <strong style="color: #5865F2;">${escapeHtml(post.user)}</strong> (${post.date})</span>
-                    <button class="danger-btn" style="width: auto; padding: 2px 8px; font-size: 11px;" onclick="deletePost('${post.id}')">削除</button>
+                    <span style="font-size: 12px; color: var(--text-muted);">投稿者: <strong style="color: #5865F2;">${escapeHtml(post.user)}</strong> ${badgesHtml} (${post.date})</span>
+                    ${canDelete ? `<button class="danger-btn" style="width: auto; padding: 2px 8px; font-size: 11px;" onclick="deletePost('${post.id}')">削除</button>` : ''}
                 </div>
                 <p style="white-space: pre-wrap; margin-top: 0;">${escapeHtml(post.desc)}</p>
                 ${mediaHtml}
@@ -1265,7 +1347,6 @@
         });
     }
 
-    // --- メディアビューア（タップ拡大・左右スライド）機能 ---
     window.openMediaViewer = function(mediaList, index) {
         currentViewerMediaList = mediaList;
         currentViewerIndex = index;
@@ -1280,35 +1361,24 @@
     window.slideMedia = function(direction) {
         currentViewerIndex += direction;
         if (currentViewerIndex < 0) {
-            currentViewerIndex = currentViewerMediaList.length - 1; // ループ
+            currentViewerIndex = currentViewerMediaList.length - 1;
         } else if (currentViewerIndex >= currentViewerMediaList.length) {
-            currentViewerIndex = 0; // ループ
+            currentViewerIndex = 0;
         }
         updateViewerContent();
     }
 
     function updateViewerContent() {
         const container = document.getElementById('viewer-media-container');
-        const prevBtn = document.getElementById('viewer-prev');
-        const nextBtn = document.getElementById('viewer-next');
-        
-        if (currentViewerMediaList.length <= 1) {
-            prevBtn.style.display = 'none';
-            nextBtn.style.display = 'none';
-        } else {
-            prevBtn.style.display = 'block';
-            nextBtn.style.display = 'block';
-        }
-
         const currentItem = currentViewerMediaList[currentViewerIndex];
+        
         if (currentItem.type === 'video') {
-            container.innerHTML = `<video src="${currentItem.url}" controls autoplay></video>`;
+            container.innerHTML = `<video src="${currentItem.url}" controls autoplay style="max-width:100%; max-height:100vh; object-fit:contain;"></video>`;
         } else {
-            container.innerHTML = `<img src="${currentItem.url}" alt="expanded image">`;
+            container.innerHTML = `<img src="${currentItem.url}" alt="expanded image" style="max-width:100%; max-height:100vh; object-fit:contain;">`;
         }
     }
 
-    // キーボードの左右矢印キーで画像を切り替えられるようにする
     document.addEventListener('keydown', (e) => {
         const modal = document.getElementById('media-viewer-modal');
         if (!modal.classList.contains('hidden')) {
@@ -1323,7 +1393,7 @@
     });
 
     function escapeHtml(str) {
-        if (!str) return '';
+        if (!str) return;
         return str.replace(/[&'`<>"]/g, function (match) {
             return { '&': '&amp;', "'": '&#x27;', '`': '&#x60;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[match];
         });

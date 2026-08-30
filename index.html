@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>みんなのプラザ - バン対策強化版</title>
+    <title>みんなのプラザ - 同名ブロック＆バン対策強化版</title>
     <style>
         :root {
             --primary: #5865F2;
@@ -473,6 +473,8 @@
     let rooms = JSON.parse(localStorage.getItem('discord_plaza_rooms')) || [];
     let blacklist = JSON.parse(localStorage.getItem('discord_plaza_blacklist')) || [];
     let globalAdmins = JSON.parse(localStorage.getItem('discord_plaza_global_admin_users')) || [];
+    let registeredUsers = JSON.parse(localStorage.getItem('discord_plaza_registered_users')) || [];
+    
     let currentRoomId = null;
     let currentUser = localStorage.getItem('discord_plaza_my_name') || "";
     let isGlobalAdmin = sessionStorage.getItem('discord_plaza_global_admin') === 'true';
@@ -500,6 +502,10 @@
         localStorage.setItem('discord_plaza_global_admin_users', JSON.stringify(globalAdmins));
     }
 
+    function saveRegisteredUsers() {
+        localStorage.setItem('discord_plaza_registered_users', JSON.stringify(registeredUsers));
+    }
+
     window.addEventListener('DOMContentLoaded', () => {
         checkUserAccess();
     });
@@ -520,23 +526,17 @@
     }
 
     function checkUserAccess() {
-        // 名前または端末IDがブラックリストに入っているかチェック
         const isBanned = blacklist.includes(currentUser) || blacklist.includes(myDeviceID);
         
         if (currentUser && isBanned) {
-            // バンされている場合は専用の画面を表示し、ログアウトや名前変更ボタンを一切隠す・排除する
             document.getElementById('setup-name-view').classList.add('hidden');
             document.getElementById('room-view').classList.add('hidden');
             document.getElementById('auth-view').classList.add('hidden');
             document.getElementById('home-view').classList.remove('hidden');
 
-            // 画面を書き換えてアクセス拒否と理由を表示
             document.getElementById('current-user-display').innerHTML = `🚫 アカウント: <strong style="color: #ed4245;">${escapeHtml(currentUser)} (アクセス禁止)</strong>`;
-            
-            // ログアウトボタン・アカウント切り替えボタンを強制非表示
             document.getElementById('user-actions-container').classList.add('hidden');
 
-            // メインコンテンツエリアをバン専用のメッセージに書き換え
             document.getElementById('home-view').innerHTML = `
                 <div style="text-align: center; margin-top: 40px; padding: 20px;">
                     <h1 style="color: #ed4245;">🚫 アクセスが制限されています</h1>
@@ -552,7 +552,6 @@
             return;
         }
 
-        // 通常時の表示復旧（もしバン状態から解除された場合などに対応）
         document.getElementById('user-actions-container').classList.remove('hidden');
 
         if (!currentUser) {
@@ -582,6 +581,15 @@
             return;
         }
 
+        // 既存の登録済みベース名（#タグより前の部分）と完全一致するかチェック
+        const lowerInput = nameInput.toLowerCase();
+        const isAlreadyTaken = registeredUsers.some(user => user.toLowerCase() === lowerInput);
+
+        if (isAlreadyTaken) {
+            alert(`「${nameInput}」はすでに他のユーザーに使用されているお名前です。別の名前にしてください！`);
+            return;
+        }
+
         const randomSuffix = '#' + Math.floor(1000 + Math.random() * 9000);
         currentUser = nameInput + randomSuffix;
 
@@ -590,12 +598,14 @@
             return;
         }
 
+        registeredUsers.push(nameInput);
+        saveRegisteredUsers();
+
         localStorage.setItem('discord_plaza_my_name', currentUser);
         checkUserAccess();
     }
 
     function logout() {
-        // バンされている場合は実行できないようにガード
         if (blacklist.includes(currentUser) || blacklist.includes(myDeviceID)) {
             alert('アクセスが制限されているためログアウトできません。');
             return;
@@ -610,7 +620,6 @@
     }
 
     function openSwitchAccountModal() {
-        // バンされている場合は切り替え画面を開かせない
         if (blacklist.includes(currentUser) || blacklist.includes(myDeviceID)) {
             alert('アクセスが制限されているためアカウントを変更できません。');
             return;
@@ -636,6 +645,15 @@
             return;
         }
 
+        // 同名チェック
+        const lowerInput = nameInput.toLowerCase();
+        const isAlreadyTaken = registeredUsers.some(user => user.toLowerCase() === lowerInput);
+
+        if (isAlreadyTaken) {
+            alert(`「${nameInput}」はすでに他のユーザーに使用されているお名前です。別の名前にしてください！`);
+            return;
+        }
+
         const randomSuffix = '#' + Math.floor(1000 + Math.random() * 9000);
         const newName = nameInput + randomSuffix;
 
@@ -643,6 +661,9 @@
             alert('このデバイスまたは名前はブラックリストに登録されているため使用できません！');
             return;
         }
+
+        registeredUsers.push(nameInput);
+        saveRegisteredUsers();
 
         currentUser = newName;
         localStorage.setItem('discord_plaza_my_name', currentUser);
@@ -699,6 +720,9 @@
             if (currentRoomId) {
                 renderMembers();
             }
+        }
+        if (e.key === 'discord_plaza_registered_users') {
+            registeredUsers = JSON.parse(e.newValue) || [];
         }
     });
 

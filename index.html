@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ブラウザチャット</title>
+    <title>ブラウザチャット（Firebase同期版）</title>
     <style>
         :root {
             --primary: #5865F2;
@@ -457,27 +457,108 @@
     </div>
 </div>
 
-<script>
-    const MASTER_ADMIN_PASSWORD = "takuto0629";
+<!-- Firebase SDK (Modular v10) -->
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+    import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-analytics.js";
+    import { getFirestore, collection, doc, setDoc, getDoc, updateDoc, deleteDoc, onSnapshot, getDocs } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+    import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 
-    // ▼【重要】パスワードなしでブラウザ管理者メニューを開けるようにしたい人の名前をここに登録してください
+    const firebaseConfig = {
+        apiKey: "AIzaSyDjBl8JdJGLFYyQ2RhKqs-ntPEFuQrila0",
+        authDomain: "browser-chat-d45f8.firebaseapp.com",
+        projectId: "browser-chat-d45f8",
+        storageBucket: "browser-chat-d45f8.firebasestorage.app",
+        messagingSenderId: "482461539095",
+        appId: "1:482461539095:web:4cdc1905d42d4127f07552",
+        measurementId: "G-HZ1DSJ0NDV"
+    };
+
+    // Initialize Firebase
+    const app = initializeApp(firebaseConfig);
+    const analytics = getAnalytics(app);
+    const db = getFirestore(app);
+    const auth = getAuth(app);
+
+    const MASTER_ADMIN_PASSWORD = "takuto0629";
     const TRUSTED_ADMIN_NAMES = ["takuto", "管理者"];
 
-    // ブラウザごとの固有ID（端末ID）を発行・取得
     let myDeviceID = localStorage.getItem('discord_plaza_device_id');
     if (!myDeviceID) {
         myDeviceID = 'device_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
         localStorage.setItem('discord_plaza_device_id', myDeviceID);
     }
 
-    let rooms = JSON.parse(localStorage.getItem('discord_plaza_rooms')) || [];
-    let blacklist = JSON.parse(localStorage.getItem('discord_plaza_blacklist')) || [];
-    let globalAdmins = JSON.parse(localStorage.getItem('discord_plaza_global_admin_users')) || [];
-    let registeredUsers = JSON.parse(localStorage.getItem('discord_plaza_registered_users')) || [];
+    let rooms = [];
+    let blacklist = [];
+    let globalAdmins = [];
+    let registeredUsers = [];
     
     let currentRoomId = null;
     let currentUser = localStorage.getItem('discord_plaza_my_name') || "";
     let isGlobalAdmin = sessionStorage.getItem('discord_plaza_global_admin') === 'true';
+
+    // 匿名認証の実行
+    signInAnonymously(auth).then(() => {
+        console.log("Firebase Anonymous Auth Success");
+    }).catch((error) => {
+        console.error("Auth Error:", error);
+    });
+
+    // Firestoreのリアルタイムリスナー設定
+    function initFirestoreListeners() {
+        // ルーム一覧のリアルタイム同期
+        onSnapshot(collection(db, "rooms"), (snapshot) => {
+            rooms = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            if (currentRoomId) {
+                const room = rooms.find(r => r.id === currentRoomId);
+                if (!room) {
+                    alert('サーバーが削除されました');
+                    goHome();
+                    return;
+                }
+                
+                const isMeGlobal = isGlobalAdmin || isMemberGlobalAdmin(currentUser) || checkTrustedAdmin();
+                if (!isMeGlobal) {
+                    if (!room.members || !room.members.includes(currentUser)) {
+                        alert('サーバーからキックされました');
+                        goHome();
+                        return;
+                    }
+                } else {
+                    if (room.members && !room.members.includes(currentUser)) {
+                        room.members.push(currentUser);
+                        updateDoc(doc(db, "rooms", currentRoomId), { members: room.members });
+                    }
+                }
+                
+                renderChats();
+                renderPosts();
+                renderMembers();
+            }
+            renderRoomList();
+        });
+
+        // システム設定（ブラックリスト・管理者リスト等）の同期
+        onSnapshot(doc(db, "system", "config"), (docSnap) => {
+            if (docSnap.exists()) {
+                const data = docSnap.data();
+                blacklist = data.blacklist || [];
+                globalAdmins = data.globalAdmins || [];
+                registeredUsers = data.registeredUsers || [];
+                checkUserAccess();
+                if (currentRoomId) renderMembers();
+            } else {
+                // 初期ドキュメント作成
+                setDoc(doc(db, "system", "config"), { blacklist: [], globalAdmins: [], registeredUsers: [] });
+            }
+        });
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+        initFirestoreListeners();
+        checkUserAccess();
+    });
 
     function checkTrustedAdmin() {
         if (!currentUser) return false;
@@ -487,34 +568,26 @@
 
     if (isGlobalAdmin && currentUser && !globalAdmins.includes(currentUser)) {
         globalAdmins.push(currentUser);
-        localStorage.setItem('discord_plaza_global_admin_users', JSON.stringify(globalAdmins));
+        updateDoc(doc(db, "system", "config"), { globalAdmins: globalAdmins });
     }
 
-    function saveRooms() {
-        localStorage.setItem('discord_plaza_rooms', JSON.stringify(rooms));
+    async function saveBlacklistToFirestore() {
+        await updateDoc(doc(db, "system", "config"), { blacklist: blacklist });
     }
 
-    function saveBlacklist() {
-        localStorage.setItem('discord_plaza_blacklist', JSON.stringify(blacklist));
+    async function saveGlobalAdminsToFirestore() {
+        await updateDoc(doc(db, "system", "config"), { globalAdmins: globalAdmins });
     }
 
-    function saveGlobalAdmins() {
-        localStorage.setItem('discord_plaza_global_admin_users', JSON.stringify(globalAdmins));
+    async function saveRegisteredUsersToFirestore() {
+        await updateDoc(doc(db, "system", "config"), { registeredUsers: registeredUsers });
     }
 
-    function saveRegisteredUsers() {
-        localStorage.setItem('discord_plaza_registered_users', JSON.stringify(registeredUsers));
-    }
-
-    window.addEventListener('DOMContentLoaded', () => {
-        checkUserAccess();
-    });
-
-    function isMemberGlobalAdmin(memberName) {
+    window.isMemberGlobalAdmin = function(memberName) {
         return globalAdmins.includes(memberName) || TRUSTED_ADMIN_NAMES.some(t => memberName.includes(t));
     }
 
-    function togglePasswordVisibility(fieldId, btnElement) {
+    window.togglePasswordVisibility = function(fieldId, btnElement) {
         const input = document.getElementById(fieldId);
         if (input.type === "password") {
             input.type = "text";
@@ -574,14 +647,13 @@
         }
     }
 
-    function registerUser() {
+    window.registerUser = async function() {
         let nameInput = document.getElementById('initial-name-input').value.trim();
         if (!nameInput) {
             alert('お名前を入力してください！');
             return;
         }
 
-        // 既存の登録済みベース名（#タグより前の部分）と完全一致するかチェック
         const lowerInput = nameInput.toLowerCase();
         const isAlreadyTaken = registeredUsers.some(user => user.toLowerCase() === lowerInput);
 
@@ -599,13 +671,13 @@
         }
 
         registeredUsers.push(nameInput);
-        saveRegisteredUsers();
+        await saveRegisteredUsersToFirestore();
 
         localStorage.setItem('discord_plaza_my_name', currentUser);
         checkUserAccess();
     }
 
-    function logout() {
+    window.logout = function() {
         if (blacklist.includes(currentUser) || blacklist.includes(myDeviceID)) {
             alert('アクセスが制限されているためログアウトできません。');
             return;
@@ -619,7 +691,7 @@
         }
     }
 
-    function openSwitchAccountModal() {
+    window.openSwitchAccountModal = function() {
         if (blacklist.includes(currentUser) || blacklist.includes(myDeviceID)) {
             alert('アクセスが制限されているためアカウントを変更できません。');
             return;
@@ -629,11 +701,11 @@
         document.getElementById('switch-account-modal').classList.remove('hidden');
     }
 
-    function closeSwitchAccountModal() {
+    window.closeSwitchAccountModal = function() {
         document.getElementById('switch-account-modal').classList.add('hidden');
     }
 
-    function switchAccount() {
+    window.switchAccount = async function() {
         if (blacklist.includes(currentUser) || blacklist.includes(myDeviceID)) {
             alert('アクセスが制限されているためアカウントを変更できません。');
             return;
@@ -645,7 +717,6 @@
             return;
         }
 
-        // 同名チェック
         const lowerInput = nameInput.toLowerCase();
         const isAlreadyTaken = registeredUsers.some(user => user.toLowerCase() === lowerInput);
 
@@ -663,7 +734,7 @@
         }
 
         registeredUsers.push(nameInput);
-        saveRegisteredUsers();
+        await saveRegisteredUsersToFirestore();
 
         currentUser = newName;
         localStorage.setItem('discord_plaza_my_name', currentUser);
@@ -679,54 +750,9 @@
         document.getElementById('home-view').classList.remove('hidden');
         renderRoomList();
     }
+    window.goHome = goHome;
 
-    window.addEventListener('storage', function(e) {
-        if (e.key === 'discord_plaza_rooms') {
-            rooms = JSON.parse(e.newValue) || [];
-            if (currentRoomId) {
-                const room = rooms.find(r => r.id === currentRoomId);
-                if (!room) {
-                    alert('サーバーが削除されました');
-                    goHome();
-                    return;
-                }
-                
-                const isMeGlobal = isGlobalAdmin || isMemberGlobalAdmin(currentUser) || checkTrustedAdmin();
-                if (!isMeGlobal) {
-                    if (!room.members.includes(currentUser)) {
-                        alert('サーバーからキックされました');
-                        goHome();
-                        return;
-                    }
-                } else {
-                    if (!room.members.includes(currentUser)) {
-                        room.members.push(currentUser);
-                        saveRooms();
-                    }
-                }
-                
-                renderChats();
-                renderPosts();
-                renderMembers();
-            }
-            renderRoomList();
-        }
-        if (e.key === 'discord_plaza_blacklist') {
-            blacklist = JSON.parse(e.newValue) || [];
-            checkUserAccess();
-        }
-        if (e.key === 'discord_plaza_global_admin_users') {
-            globalAdmins = JSON.parse(e.newValue) || [];
-            if (currentRoomId) {
-                renderMembers();
-            }
-        }
-        if (e.key === 'discord_plaza_registered_users') {
-            registeredUsers = JSON.parse(e.newValue) || [];
-        }
-    });
-
-    function openGlobalAdminModal() {
+    window.openGlobalAdminModal = function() {
         document.getElementById('global-admin-modal').classList.remove('hidden');
         const isMeGlobal = isGlobalAdmin || isMemberGlobalAdmin(currentUser) || checkTrustedAdmin();
         
@@ -741,11 +767,11 @@
         }
     }
 
-    function closeGlobalAdminModal() {
+    window.closeGlobalAdminModal = function() {
         document.getElementById('global-admin-modal').classList.add('hidden');
     }
 
-    function checkAdminPassword() {
+    window.checkAdminPassword = async function() {
         const pass = document.getElementById('admin-password-input').value;
         if (pass === MASTER_ADMIN_PASSWORD || checkTrustedAdmin()) {
             isGlobalAdmin = true;
@@ -753,7 +779,7 @@
             
             if (!globalAdmins.includes(currentUser)) {
                 globalAdmins.push(currentUser);
-                saveGlobalAdmins();
+                await saveGlobalAdminsToFirestore();
             }
 
             alert('👑 ブラウザ管理者としてログインしました！すべてのサーバーで無敵になり、誰でも自由にキック可能です。');
@@ -763,9 +789,10 @@
             
             if (currentRoomId) {
                 const room = rooms.find(r => r.id === currentRoomId);
-                if (room && !room.members.includes(currentUser)) {
+                if (room && (!room.members || !room.members.includes(currentUser))) {
+                    if (!room.members) room.members = [];
                     room.members.push(currentUser);
-                    saveRooms();
+                    await updateDoc(doc(db, "rooms", currentRoomId), { members: room.members });
                 }
                 updateRoomUIState();
             }
@@ -774,13 +801,13 @@
         }
     }
 
-    function deactivateGlobalAdmin() {
+    window.deactivateGlobalAdmin = async function() {
         if (confirm('ブラウザ管理者権限をオフにしますか？')) {
             isGlobalAdmin = false;
             sessionStorage.removeItem('discord_plaza_global_admin');
             
             globalAdmins = globalAdmins.filter(name => name !== currentUser);
-            saveGlobalAdmins();
+            await saveGlobalAdminsToFirestore();
 
             closeGlobalAdminModal();
             checkUserAccess();
@@ -791,22 +818,22 @@
         }
     }
 
-    function addToBlacklist() {
+    window.addToBlacklist = async function() {
         const target = document.getElementById('blacklist-input').value.trim();
         if (!target) return;
 
         if (!blacklist.includes(target)) {
             blacklist.push(target);
-            saveBlacklist();
+            await saveBlacklistToFirestore();
             renderBlacklist();
             document.getElementById('blacklist-input').value = '';
             alert(`「${target}」をブラックリスト（名前または端末ID）に追加しました。`);
         }
     }
 
-    function removeFromBlacklist(target) {
+    window.removeFromBlacklist = async function(target) {
         blacklist = blacklist.filter(n => n !== target);
-        saveBlacklist();
+        await saveBlacklistToFirestore();
         renderBlacklist();
         alert(`「${target}」をブラックリストから解除しました。`);
     }
@@ -831,7 +858,7 @@
         });
     }
 
-    function createRoom() {
+    window.createRoom = async function() {
         const name = document.getElementById('new-room-name').value.trim();
         const pass = document.getElementById('new-room-pass').value.trim();
         const adminPass = document.getElementById('new-room-admin-pass').value.trim();
@@ -847,8 +874,8 @@
             return;
         }
 
+        const roomId = 'room_' + Date.now();
         const newRoom = {
-            id: 'room_' + Date.now(),
             name: name,
             pass: pass,
             adminPass: adminPass,
@@ -860,13 +887,11 @@
             posts: []
         };
 
-        rooms.push(newRoom);
-        saveRooms();
+        await setDoc(doc(db, "rooms", roomId), newRoom);
         
         document.getElementById('new-room-name').value = '';
         document.getElementById('new-room-pass').value = '';
         document.getElementById('new-room-admin-pass').value = '';
-        renderRoomList();
         alert('サーバーを作成しました！');
     }
 
@@ -898,16 +923,14 @@
         });
     }
 
-    function promptDeleteRoom(roomId) {
+    window.promptDeleteRoom = async function(roomId) {
         const room = rooms.find(r => r.id === roomId);
         if (!room) return;
 
         const isMeGlobal = isGlobalAdmin || isMemberGlobalAdmin(currentUser) || checkTrustedAdmin();
         if (isMeGlobal) {
             if (confirm(`【ブラウザ管理者権限】サーバー「${room.name}」を強制削除しますか？`)) {
-                rooms = rooms.filter(r => r.id !== roomId);
-                saveRooms();
-                renderRoomList();
+                await deleteDoc(doc(db, "rooms", roomId));
             }
             return;
         }
@@ -921,23 +944,19 @@
         }
 
         if (confirm(`本当にサーバー「${room.name}」を完全に削除しますか？`)) {
-            rooms = rooms.filter(r => r.id !== roomId);
-            saveRooms();
-            renderRoomList();
+            await deleteDoc(doc(db, "rooms", roomId));
         }
     }
 
-    function promptDeleteCurrentRoom() {
+    window.promptDeleteCurrentRoom = async function() {
         const room = rooms.find(r => r.id === currentRoomId);
         if (!room) return;
 
         const isMeGlobal = isGlobalAdmin || isMemberGlobalAdmin(currentUser) || checkTrustedAdmin();
         if (isMeGlobal) {
             if (confirm(`【ブラウザ管理者権限】現在のサーバー「${room.name}」を強制削除しますか？`)) {
-                rooms = rooms.filter(r => r.id !== currentRoomId);
-                saveRooms();
+                await deleteDoc(doc(db, "rooms", currentRoomId));
                 goHome();
-                renderRoomList();
             }
             return;
         }
@@ -951,14 +970,12 @@
         }
 
         if (confirm(`本当にサーバー「${room.name}」を完全に削除しますか？`)) {
-            rooms = rooms.filter(r => r.id !== currentRoomId);
-            saveRooms();
+            await deleteDoc(doc(db, "rooms", currentRoomId));
             goHome();
-            renderRoomList();
         }
     }
 
-    function openAuth(roomId) {
+    window.openAuth = function(roomId) {
         currentRoomId = roomId;
         const room = rooms.find(r => r.id === roomId);
         
@@ -975,7 +992,7 @@
         document.getElementById('enter-room-pass').value = '';
     }
 
-    function verifyPassword() {
+    window.verifyPassword = function() {
         const inputPass = document.getElementById('enter-room-pass').value;
         const room = rooms.find(r => r.id === currentRoomId);
 
@@ -987,11 +1004,14 @@
         enterRoomDirectly();
     }
 
-    function enterRoomDirectly() {
+    async function enterRoomDirectly() {
         const room = rooms.find(r => r.id === currentRoomId);
         
         const isMeGlobal = isGlobalAdmin || isMemberGlobalAdmin(currentUser) || checkTrustedAdmin();
         const isRoomAdmin = (room.creator === currentUser || (room.admins && room.admins.includes(currentUser)));
+        
+        if (!room.members) room.members = [];
+
         if (!room.members.includes(currentUser)) {
             if (!isMeGlobal && !isRoomAdmin && room.members.length >= room.limit) {
                 alert('このサーバーは満員です！');
@@ -999,7 +1019,7 @@
                 return;
             }
             room.members.push(currentUser);
-            saveRooms();
+            await updateDoc(doc(db, "rooms", currentRoomId), { members: room.members });
         }
 
         document.getElementById('home-view').classList.add('hidden');
@@ -1035,7 +1055,7 @@
         renderMembers();
     }
 
-    function updateRoomLimit() {
+    window.updateRoomLimit = async function() {
         const room = rooms.find(r => r.id === currentRoomId);
         if (!room) return;
 
@@ -1045,22 +1065,20 @@
             return;
         }
 
-        room.limit = newLimit;
-        saveRooms();
-        renderMembers();
+        await updateDoc(doc(db, "rooms", currentRoomId), { limit: newLimit });
         alert(`定員を「${newLimit}人」に変更しました！`);
     }
 
-    function leaveRoom() {
+    window.leaveRoom = async function() {
         const room = rooms.find(r => r.id === currentRoomId);
-        if (room) {
+        if (room && room.members) {
             room.members = room.members.filter(m => m !== currentUser);
-            saveRooms();
+            await updateDoc(doc(db, "rooms", currentRoomId), { members: room.members });
         }
         goHome();
     }
 
-    function kickMember(memberName) {
+    window.kickMember = async function(memberName) {
         const room = rooms.find(r => r.id === currentRoomId);
         if (!room) return;
 
@@ -1088,60 +1106,59 @@
             return;
         }
 
-        room.members = room.members.filter(m => m !== memberName);
-        if (room.admins) {
-            room.admins = room.admins.filter(a => a !== memberName);
-        }
-        saveRooms();
-        renderMembers();
+        const newMembers = (room.members || []).filter(m => m !== memberName);
+        const newAdmins = (room.admins || []).filter(a => a !== memberName);
+        
+        await updateDoc(doc(db, "rooms", currentRoomId), { 
+            members: newMembers,
+            admins: newAdmins
+        });
         alert(`「${memberName}」をサーバーからキックしました！`);
     }
 
-    function promoteAdmin(memberName) {
+    window.promoteAdmin = async function(memberName) {
         const room = rooms.find(r => r.id === currentRoomId);
         if (!room) return;
 
-        if (!room.admins) room.admins = [];
-
-        if (room.admins.includes(memberName)) {
+        let admins = room.admins || [];
+        if (admins.includes(memberName)) {
             alert('すでに管理者です！');
             return;
         }
 
         if (confirm(`「${memberName}」に管理者権限を付与しますか？`)) {
-            room.admins.push(memberName);
-            saveRooms();
-            renderMembers();
+            admins.push(memberName);
+            await updateDoc(doc(db, "rooms", currentRoomId), { admins: admins });
             alert(`「${memberName}」を管理者に任命しました！`);
         }
     }
 
-    function demoteAdmin(memberName) {
+    window.demoteAdmin = async function(memberName) {
         const room = rooms.find(r => r.id === currentRoomId);
         if (!room) return;
 
         if (confirm(`「${memberName}」の管理者権限を解除しますか？`)) {
-            room.admins = room.admins.filter(a => a !== memberName);
-            saveRooms();
-            renderMembers();
+            let admins = (room.admins || []).filter(a => a !== memberName);
+            await updateDoc(doc(db, "rooms", currentRoomId), { admins: admins });
             alert(`「${memberName}」の管理者権限を解除しました。`);
         }
     }
 
-    function transferOwnership(newOwnerName) {
+    window.transferOwnership = async function(newOwnerName) {
         const room = rooms.find(r => r.id === currentRoomId);
         if (!room) return;
 
         if (confirm(`本当にサーバーのオーナー権限を「${newOwnerName}」に譲渡しますか？`)) {
-            if (!room.admins) room.admins = [];
-            if (!room.admins.includes(room.creator)) {
-                room.admins.push(room.creator);
+            let admins = room.admins || [];
+            if (!admins.includes(room.creator)) {
+                admins.push(room.creator);
             }
-            room.admins = room.admins.filter(a => a !== newOwnerName);
+            admins = admins.filter(a => a !== newOwnerName);
             
-            room.creator = newOwnerName;
-            saveRooms();
-            updateRoomUIState();
+            await updateDoc(doc(db, "rooms", currentRoomId), { 
+                creator: newOwnerName,
+                admins: admins
+            });
             alert(`サーバーのオーナー権限を「${newOwnerName}」に譲渡しました！`);
         }
     }
@@ -1151,7 +1168,7 @@
         if (!room) return;
 
         const isMeGlobal = isGlobalAdmin || isMemberGlobalAdmin(currentUser) || checkTrustedAdmin();
-        if (!isMeGlobal && !room.members.includes(currentUser)) {
+        if (!isMeGlobal && room.members && !room.members.includes(currentUser)) {
             goHome();
             return;
         }
@@ -1225,7 +1242,7 @@
         });
     }
 
-    function sendChat() {
+    window.sendChat = async function() {
         const input = document.getElementById('chat-input');
         const text = input.value.trim();
         if (!text) return;
@@ -1233,25 +1250,27 @@
         const room = rooms.find(r => r.id === currentRoomId);
         if (!room) return;
 
-        room.chats.push({
+        const newChat = {
             id: 'chat_' + Date.now() + '_' + Math.random(),
             user: currentUser,
             text: text,
             date: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-        });
-        saveRooms();
+        };
 
+        const chats = room.chats || [];
+        chats.push(newChat);
+
+        await updateDoc(doc(db, "rooms", currentRoomId), { chats: chats });
         input.value = '';
-        renderChats();
     }
 
-    function handleChatKey(e) {
+    window.handleChatKey = function(e) {
         if (e.key === 'Enter') {
-            sendChat();
+            window.sendChat();
         }
     }
 
-    function deleteChat(chatId, chatUser) {
+    window.deleteChat = async function(chatId, chatUser) {
         const room = rooms.find(r => r.id === currentRoomId);
         if (!room) return;
 
@@ -1262,9 +1281,8 @@
             return;
         }
 
-        room.chats = room.chats.filter(c => c.id !== chatId);
-        saveRooms();
-        renderChats();
+        const chats = (room.chats || []).filter(c => c.id !== chatId);
+        await updateDoc(doc(db, "rooms", currentRoomId), { chats: chats });
     }
 
     function renderChats() {
@@ -1303,7 +1321,7 @@
         container.scrollTop = container.scrollHeight;
     }
 
-    function handleCameraCapture(event) {
+    window.handleCameraCapture = function(event) {
         const file = event.target.files[0];
         if (!file) return;
 
@@ -1311,7 +1329,7 @@
         if (!room) return;
 
         const reader = new FileReader();
-        reader.onload = function(e) {
+        reader.onload = async function(e) {
             const desc = document.getElementById('post-desc').value.trim();
             const newPost = {
                 id: 'post_' + Date.now() + '_cam',
@@ -1322,17 +1340,18 @@
                 date: new Date().toLocaleString()
             };
 
-            room.posts.unshift(newPost);
-            saveRooms();
+            const posts = room.posts || [];
+            posts.unshift(newPost);
+
+            await updateDoc(doc(db, "rooms", currentRoomId), { posts: posts });
             document.getElementById('post-desc').value = '';
             document.getElementById('camera-file').value = '';
-            renderPosts();
             alert('カメラで撮影した写真を投稿しました！');
         };
         reader.readAsDataURL(file);
     }
 
-    function createPosts() {
+    window.createPosts = function() {
         const fileInput = document.getElementById('post-files');
         const desc = document.getElementById('post-desc').value.trim();
 
@@ -1351,10 +1370,11 @@
 
         let filesProcessed = 0;
         const files = Array.from(fileInput.files);
+        const posts = room.posts || [];
 
         files.forEach((file, index) => {
             const reader = new FileReader();
-            reader.onload = function(e) {
+            reader.onload = async function(e) {
                 const newPost = {
                     id: 'post_' + Date.now() + '_' + index,
                     user: currentUser,
@@ -1364,21 +1384,20 @@
                     date: new Date().toLocaleString()
                 };
 
-                room.posts.unshift(newPost);
+                posts.unshift(newPost);
                 filesProcessed++;
 
                 if (filesProcessed === files.length) {
-                    saveRooms();
+                    await updateDoc(doc(db, "rooms", currentRoomId), { posts: posts });
                     fileInput.value = '';
                     document.getElementById('post-desc').value = '';
-                    renderPosts();
                 }
             };
             reader.readAsDataURL(file);
         });
     }
 
-    function deletePost(postId, postUser) {
+    window.deletePost = async function(postId, postUser) {
         const room = rooms.find(r => r.id === currentRoomId);
         if (!room) return;
 
@@ -1389,9 +1408,8 @@
             return;
         }
 
-        room.posts = room.posts.filter(p => p.id !== postId);
-        saveRooms();
-        renderPosts();
+        const posts = (room.posts || []).filter(p => p.id !== postId);
+        await updateDoc(doc(db, "rooms", currentRoomId), { posts: posts });
     }
 
     function renderPosts() {

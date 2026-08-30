@@ -1,0 +1,1370 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ブラウザチャット</title>
+    <style>
+        :root {
+            --primary: #5865F2;
+            --primary-hover: #4752C4;
+            --danger: #ed4245;
+            --danger-hover: #c03537;
+            --admin-gold: #f1c40f;
+            --bg: #313338;
+            --card-bg: #2b2d31;
+            --text: #dbdee1;
+            --text-muted: #949ba4;
+            --border: #1e1f22;
+            --input-bg: #1e1f22;
+        }
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+        }
+        .container {
+            width: 100%;
+            max-width: 900px;
+            background: var(--card-bg);
+            padding: 24px;
+            border-radius: 12px;
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.3);
+        }
+        .top-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        .global-admin-btn {
+            background-color: var(--admin-gold);
+            color: #000;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: bold;
+            width: auto;
+        }
+        .global-admin-btn:hover {
+            background-color: #d4ac0d;
+        }
+        h1, h2, h3 {
+            color: #f2f3f5;
+            text-align: center;
+        }
+        .form-group {
+            margin-bottom: 16px;
+        }
+        label {
+            display: block;
+            margin-bottom: 6px;
+            font-weight: bold;
+            font-size: 14px;
+            color: var(--text-muted);
+        }
+        input, textarea, select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid var(--border);
+            background-color: var(--input-bg);
+            color: var(--text);
+            border-radius: 6px;
+            box-sizing: border-box;
+            font-size: 14px;
+        }
+        .password-wrapper {
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+        .password-wrapper input {
+            padding-right: 40px;
+        }
+        .toggle-password {
+            position: absolute;
+            right: 10px;
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+            color: var(--text-muted);
+            padding: 0;
+            width: auto;
+        }
+        .toggle-password:hover {
+            color: var(--text);
+            background: none;
+        }
+        button {
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            padding: 10px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: bold;
+            width: 100%;
+            transition: background 0.2s;
+        }
+        button:hover {
+            background-color: var(--primary-hover);
+        }
+        .danger-btn {
+            background-color: var(--danger);
+        }
+        .danger-btn:hover {
+            background-color: var(--danger-hover);
+        }
+        .hidden {
+            display: none !important;
+        }
+        .room-card {
+            border: 1px solid var(--border);
+            background: #1e1f22;
+            padding: 14px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .room-actions {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        .room-layout {
+            display: flex;
+            gap: 16px;
+            flex-wrap: wrap;
+        }
+        .room-main {
+            flex: 1;
+            min-width: 300px;
+        }
+        .room-sidebar {
+            width: 260px;
+            background: #1e1f22;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 12px;
+            height: fit-content;
+        }
+        .chat-box {
+            background: #1e1f22;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            height: 250px;
+            overflow-y: scroll;
+            padding: 12px;
+            margin-bottom: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .chat-msg {
+            background: #2b2d31;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 14px;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+        }
+        .chat-user {
+            font-weight: bold;
+            color: #5865F2;
+            margin-right: 6px;
+        }
+        .member-item {
+            font-size: 13px;
+            padding: 8px;
+            border-radius: 6px;
+            margin-bottom: 6px;
+            background: #2b2d31;
+            border: 1px solid var(--border);
+        }
+        .post-card {
+            border: 1px solid var(--border);
+            padding: 16px;
+            border-radius: 8px;
+            margin-bottom: 16px;
+            background: #1e1f22;
+            position: relative;
+        }
+        .post-media {
+            max-width: 100%;
+            max-height: 300px;
+            border-radius: 6px;
+            margin-top: 8px;
+            display: block;
+        }
+        .back-btn {
+            background-color: #4e5058;
+            margin-bottom: 16px;
+            width: auto;
+            padding: 6px 14px;
+        }
+        .back-btn:hover {
+            background-color: #6d6f78;
+        }
+        hr {
+            border: 0;
+            border-top: 1px solid var(--border);
+            margin: 20px 0;
+        }
+        .modal {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.7);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        .modal-content {
+            background: var(--card-bg);
+            padding: 24px;
+            border-radius: 12px;
+            width: 90%;
+            max-width: 450px;
+            border: 1px solid var(--border);
+        }
+        .blacklist-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #1e1f22;
+            padding: 6px 10px;
+            border-radius: 6px;
+            margin-bottom: 6px;
+            font-size: 13px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <!-- 上部バー -->
+    <div class="top-bar">
+        <button class="global-admin-btn" onclick="openGlobalAdminModal()">⚙️ ブラウザ管理者メニュー</button>
+    </div>
+
+    <!-- 初回名前登録画面 -->
+    <div id="setup-name-view" class="hidden">
+        <h1>👋 ようこそ！ブラウザチャットへ</h1>
+        <p style="text-align: center; color: var(--text-muted); font-size: 14px;">まずは、あなたのお名前（ニックネーム）を決めてね！</p>
+        <hr>
+        <div class="form-group" style="margin-top: 30px;">
+            <label>あなたのお名前</label>
+            <input type="text" id="initial-name-input" placeholder="例：てすとくん">
+        </div>
+        <button onclick="registerUser()">プラザに入る</button>
+    </div>
+
+    <!-- トップ画面：ルーム一覧・作成 -->
+    <div id="home-view" class="hidden">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; background: #1e1f22; padding: 10px 14px; border-radius: 8px; border: 1px solid var(--border); flex-wrap: wrap; gap: 8px;">
+            <span id="current-user-display" style="font-size: 14px; font-weight: bold; color: var(--text);"></span>
+            <div style="display: flex; gap: 6px;">
+                <button style="width: auto; padding: 6px 12px; font-size: 12px; background-color: #f1c40f; color: #000;" onclick="openSwitchAccountModal()">🔄 アカウント切り替え</button>
+                <button class="danger-btn" style="width: auto; padding: 6px 12px; font-size: 12px;" onclick="logout()">🚪 ログアウト</button>
+            </div>
+        </div>
+        <h1>💬 ブラウザチャット</h1>
+        <p style="text-align: center; color: var(--text-muted); font-size: 14px;">自由にサーバーを作って会話・写真共有しよう</p>
+        
+        <hr>
+
+        <h2>サーバーを作る</h2>
+        <div class="form-group">
+            <label>サーバー名 <span style="color: var(--danger);">*必須</span></label>
+            <input type="text" id="new-room-name" placeholder="例：みんなのゲーム部屋">
+        </div>
+        <div class="form-group">
+            <label>入室パスワード（合言葉・空欄でもOK）</label>
+            <div class="password-wrapper">
+                <input type="password" id="new-room-pass" placeholder="必要ならパスワードを設定">
+                <button type="button" class="toggle-password" onclick="togglePasswordVisibility('new-room-pass', this)">─</button>
+            </div>
+        </div>
+        <div class="form-group">
+            <label>削除・管理パスワード <span style="color: var(--danger);">*必須</span></label>
+            <div class="password-wrapper">
+                <input type="password" id="new-room-admin-pass" placeholder="サーバーを削除するためのパスワード">
+                <button type="button" class="toggle-password" onclick="togglePasswordVisibility('new-room-admin-pass', this)">─</button>
+            </div>
+        </div>
+        <div class="form-group">
+            <label>最大参加人数</label>
+            <input type="number" id="new-room-limit" value="5" min="1" max="50">
+        </div>
+        <button onclick="createRoom()">サーバーを作成</button>
+
+        <h2 style="margin-top: 30px;">既存のサーバー一覧</h2>
+        <div id="room-list">
+            <!-- ルームがここに表示されます -->
+        </div>
+    </div>
+
+    <!-- 入室時のパスワード認証画面 -->
+    <div id="auth-view" class="hidden">
+        <button class="back-btn" onclick="goHome()">← ホームに戻る</button>
+        <h2 id="auth-room-title">サーバーに入室</h2>
+        <div class="form-group" id="pass-group">
+            <label>入室パスワード</label>
+            <div class="password-wrapper">
+                <input type="password" id="enter-room-pass" placeholder="サーバーのパスワード">
+                <button type="button" class="toggle-password" onclick="togglePasswordVisibility('enter-room-pass', this)">─</button>
+            </div>
+        </div>
+        <button onclick="verifyPassword()">入室する</button>
+    </div>
+
+    <!-- サーバー内（チャット・投稿画面） -->
+    <div id="room-view" class="hidden">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <button class="back-btn" onclick="leaveRoom()">← サーバー一覧へ戻る</button>
+            <button class="danger-btn" style="width: auto; padding: 6px 12px; font-size: 12px; margin-bottom: 16px;" onclick="leaveRoom()">🚪 サーバーから退出する</button>
+        </div>
+        <h2 id="current-room-title">サーバー名</h2>
+        <div id="admin-badge" style="text-align: center; font-size: 13px; color: var(--admin-gold); margin-bottom: 15px;" class="hidden">👑 【ブラウザ管理者モード発動中】すべてのサーバーを完全掌握しています。どんなメンバーでも自由にキック可能です！</div>
+        
+        <div class="room-layout">
+            <!-- メインコンテンツ（チャット・投稿） -->
+            <div class="room-main">
+                <h3 style="text-align: left; margin-bottom: 8px;">💬 チャットルーム</h3>
+                <div class="chat-box" id="chat-container">
+                    <!-- チャットメッセージ -->
+                </div>
+                <div style="display: flex; gap: 8px; margin-bottom: 24px;">
+                    <input type="text" id="chat-input" placeholder="メッセージを入力..." onkeypress="handleChatKey(event)">
+                    <button style="width: 100px;" onclick="sendChat()">送信</button>
+                </div>
+
+                <hr>
+
+                <h3 style="text-align: left; margin-bottom: 8px;">📸 写真・動画・説明書の共有（最大5個まで一括送信OK）</h3>
+                <div style="background: #1e1f22; padding: 16px; border-radius: 8px; border: 1px solid var(--border); margin-bottom: 20px;">
+                    <div class="form-group">
+                        <label>写真または動画ファイル（複数選択可・最大5個）</label>
+                        <div style="display: flex; gap: 10px; align-items: center;">
+                            <input type="file" id="post-files" accept="image/*,video/*" multiple style="flex: 1;">
+                            <input type="file" id="camera-file" accept="image/*" capture="environment" style="display: none;" onchange="handleCameraCapture(event)">
+                            <button type="button" style="width: auto; padding: 10px 14px; background-color: #2b2d31; border: 1px solid var(--border);" onclick="document.getElementById('camera-file').click()" title="カメラで写真を撮る">📸 カメラ撮影</button>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>説明文・説明書</label>
+                        <textarea id="post-desc" rows="3" placeholder="写真や動画の説明を書いてね"></textarea>
+                    </div>
+                    <button onclick="createPosts()">一括投稿する</button>
+                </div>
+
+                <h3 style="text-align: left;">📁 投稿一覧</h3>
+                <div id="posts-container">
+                    <!-- 投稿一覧 -->
+                </div>
+            </div>
+
+            <!-- サイドバー（サーバー設定・メンバー一覧） -->
+            <div class="room-sidebar">
+                <div id="room-settings-panel" class="hidden" style="margin-bottom: 15px; background: #1e1f22; padding: 10px; border-radius: 6px; border: 1px solid var(--border);">
+                    <h4 style="margin: 0 0 8px 0; font-size: 13px; color: var(--admin-gold);">⚙️ サーバー管理・設定</h4>
+                    <div class="form-group" style="margin-bottom: 8px;">
+                        <label style="font-size: 11px;">定員数を変更</label>
+                        <input type="number" id="edit-room-limit" min="1" max="50" style="padding: 6px; font-size: 12px;">
+                    </div>
+                    <button style="padding: 6px; font-size: 12px; margin-bottom: 8px;" onclick="updateRoomLimit()">定員を適用</button>
+                    <button class="danger-btn" style="padding: 6px; font-size: 12px;" onclick="promptDeleteCurrentRoom()">🗑️ このサーバーを削除</button>
+                </div>
+
+                <h3 id="member-count-title" style="font-size: 14px; text-align: left; margin-top: 0; margin-bottom: 10px; color: var(--text);">🟢 参加中メンバー (0/0)</h3>
+                <div id="member-list-container" style="max-height: 400px; overflow-y: auto;">
+                    <!-- メンバー名がここに並びます -->
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- アカウント切り替えモーダル -->
+<div id="switch-account-modal" class="modal hidden">
+    <div class="modal-content">
+        <h2>🔄 アカウントを切り替える</h2>
+        <p style="font-size: 13px; color: var(--text-muted); text-align: center;">新しいお名前を入力してください。</p>
+        <div class="form-group" style="margin-top: 15px;">
+            <label>新しいお名前</label>
+            <input type="text" id="switch-name-input" placeholder="例：新しい名前">
+        </div>
+        <button onclick="switchAccount()">この名前に切り替える</button>
+        <button class="back-btn" style="width: 100%; margin-top: 10px; background-color: #4e5058;" onclick="closeSwitchAccountModal()">キャンセル</button>
+    </div>
+</div>
+
+<!-- ブラウザ管理者メニューのモーダル -->
+<div id="global-admin-modal" class="modal hidden">
+    <div class="modal-content">
+        <h2>⚙️ ブラウザ管理者メニュー</h2>
+        
+        <div id="admin-login-section">
+            <p style="font-size: 13px; color: var(--text-muted); text-align: center;">管理者専用のパスワードを入力してください。</p>
+            <div class="form-group" style="margin-top: 15px;">
+                <label>管理者パスワード</label>
+                <div class="password-wrapper">
+                    <input type="password" id="admin-password-input" placeholder="パスワードを入力">
+                    <button type="button" class="toggle-password" onclick="togglePasswordVisibility('admin-password-input', this)">─</button>
+                </div>
+            </div>
+            <button onclick="checkAdminPassword()">ログインする</button>
+            <button class="back-btn" style="width: 100%; margin-top: 10px; background-color: #4e5058;" onclick="closeGlobalAdminModal()">閉じる</button>
+        </div>
+
+        <div id="admin-panel-section" class="hidden">
+            <p style="font-size: 13px; color: var(--admin-gold); text-align: center; font-weight: bold;" id="admin-status-text">👑 ブラウザ管理者としてログイン中</p>
+            
+            <button class="danger-btn" style="margin-top: 10px; margin-bottom: 15px;" onclick="deactivateGlobalAdmin()">🔓 ブラウザ管理者権限をオフにする</button>
+
+            <hr>
+
+            <div class="form-group">
+                <label>🚫 ブラックリスト追加</label>
+                <input type="text" id="blacklist-input" placeholder="ブロックしたい人の名前">
+            </div>
+            <button class="danger-btn" onclick="addToBlacklist()">ブラックリストに追加する</button>
+
+            <div style="margin-top: 15px;">
+                <label>現在のブラックリスト（解除可能）:</label>
+                <div id="blacklist-container" style="max-height: 120px; overflow-y: auto; background: #1e1f22; padding: 8px; border-radius: 6px;">
+                </div>
+            </div>
+
+            <button class="back-btn" style="width: 100%; margin-top: 20px;" onclick="closeGlobalAdminModal()">閉じる</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    const MASTER_ADMIN_PASSWORD = "takuto0629";
+
+    let rooms = JSON.parse(localStorage.getItem('discord_plaza_rooms')) || [];
+    let blacklist = JSON.parse(localStorage.getItem('discord_plaza_blacklist')) || [];
+    let globalAdmins = JSON.parse(localStorage.getItem('discord_plaza_global_admin_users')) || [];
+    let currentRoomId = null;
+    let currentUser = localStorage.getItem('discord_plaza_my_name') || "";
+    let isGlobalAdmin = sessionStorage.getItem('discord_plaza_global_admin') === 'true';
+
+    if (isGlobalAdmin && currentUser && !globalAdmins.includes(currentUser)) {
+        globalAdmins.push(currentUser);
+        localStorage.setItem('discord_plaza_global_admin_users', JSON.stringify(globalAdmins));
+    }
+
+    function saveRooms() {
+        localStorage.setItem('discord_plaza_rooms', JSON.stringify(rooms));
+    }
+
+    function saveBlacklist() {
+        localStorage.setItem('discord_plaza_blacklist', JSON.stringify(blacklist));
+    }
+
+    function saveGlobalAdmins() {
+        localStorage.setItem('discord_plaza_global_admin_users', JSON.stringify(globalAdmins));
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+        checkUserAccess();
+    });
+
+    function isMemberGlobalAdmin(memberName) {
+        return globalAdmins.includes(memberName);
+    }
+
+    // パスワードの表示/非表示を切り替える関数（─＝閉じている/非表示、👁️＝開いている/表示中）
+    function togglePasswordVisibility(fieldId, btnElement) {
+        const input = document.getElementById(fieldId);
+        if (input.type === "password") {
+            input.type = "text";
+            btnElement.textContent = "👁️"; // 開いている時（テキストが見える状態）
+        } else {
+            input.type = "password";
+            btnElement.textContent = "─"; // 閉じている時（隠れている状態）
+        }
+    }
+
+    function checkUserAccess() {
+        if (currentUser && blacklist.includes(currentUser)) {
+            document.body.innerHTML = `
+                <div style="color: white; text-align: center; margin-top: 100px; font-family: sans-serif;">
+                    <h1 style="color: #ed4245;">🚫 アクセスが拒否されました</h1>
+                    <p>あなたの名前「${escapeHtml(currentUser)}」はブラックリストに登録されているため、このプラザを利用できません。</p>
+                </div>
+            `;
+            return;
+        }
+
+        if (!currentUser) {
+            document.getElementById('setup-name-view').classList.remove('hidden');
+            document.getElementById('home-view').classList.add('hidden');
+            document.getElementById('room-view').classList.add('hidden');
+            document.getElementById('auth-view').classList.add('hidden');
+        } else {
+            document.getElementById('setup-name-view').classList.add('hidden');
+            if (currentRoomId) {
+                document.getElementById('home-view').classList.add('hidden');
+                document.getElementById('room-view').classList.remove('hidden');
+            } else {
+                document.getElementById('home-view').classList.remove('hidden');
+                document.getElementById('room-view').classList.add('hidden');
+                renderRoomList();
+            }
+            const isMeGlobal = isGlobalAdmin || isMemberGlobalAdmin(currentUser);
+            document.getElementById('current-user-display').innerHTML = `👤 ログイン中: <strong style="color: #5865F2;">${escapeHtml(currentUser)}</strong> ${isMeGlobal ? '<span style="color: #f1c40f; font-size: 11px;">(👑 ブラウザ管理者)</span>' : ''}`;
+        }
+    }
+
+    function registerUser() {
+        let nameInput = document.getElementById('initial-name-input').value.trim();
+        if (!nameInput) {
+            alert('お名前を入力してください！');
+            return;
+        }
+
+        const randomSuffix = '#' + Math.floor(1000 + Math.random() * 9000);
+        currentUser = nameInput + randomSuffix;
+
+        if (blacklist.includes(currentUser)) {
+            alert('この名前はブラックリストに登録されているため使用できません！');
+            return;
+        }
+
+        localStorage.setItem('discord_plaza_my_name', currentUser);
+        checkUserAccess();
+    }
+
+    function logout() {
+        if (confirm('ログアウトしますか？')) {
+            localStorage.removeItem('discord_plaza_my_name');
+            currentUser = "";
+            goHome();
+            checkUserAccess();
+        }
+    }
+
+    function openSwitchAccountModal() {
+        document.getElementById('switch-name-input').value = '';
+        document.getElementById('switch-account-modal').classList.remove('hidden');
+    }
+
+    function closeSwitchAccountModal() {
+        document.getElementById('switch-account-modal').classList.add('hidden');
+    }
+
+    function switchAccount() {
+        let nameInput = document.getElementById('switch-name-input').value.trim();
+        if (!nameInput) {
+            alert('新しいお名前を入力してください！');
+            return;
+        }
+
+        const randomSuffix = '#' + Math.floor(1000 + Math.random() * 9000);
+        const newName = nameInput + randomSuffix;
+
+        if (blacklist.includes(newName)) {
+            alert('この名前はブラックリストに登録されているため使用できません！');
+            return;
+        }
+
+        currentUser = newName;
+        localStorage.setItem('discord_plaza_my_name', currentUser);
+        closeSwitchAccountModal();
+        checkUserAccess();
+        alert(`アカウントを「${currentUser}」に切り替えました！`);
+    }
+
+    function goHome() {
+        currentRoomId = null;
+        document.getElementById('room-view').classList.add('hidden');
+        document.getElementById('auth-view').classList.add('hidden');
+        document.getElementById('home-view').classList.remove('hidden');
+        renderRoomList();
+    }
+
+    window.addEventListener('storage', function(e) {
+        if (e.key === 'discord_plaza_rooms') {
+            rooms = JSON.parse(e.newValue) || [];
+            if (currentRoomId) {
+                const room = rooms.find(r => r.id === currentRoomId);
+                if (!room) {
+                    alert('サーバーが削除されました');
+                    goHome();
+                    return;
+                }
+                
+                const isMeGlobal = isGlobalAdmin || isMemberGlobalAdmin(currentUser);
+                if (!isMeGlobal) {
+                    if (!room.members.includes(currentUser)) {
+                        alert('サーバーからキックされました');
+                        goHome();
+                        return;
+                    }
+                } else {
+                    if (!room.members.includes(currentUser)) {
+                        room.members.push(currentUser);
+                        saveRooms();
+                    }
+                }
+                
+                renderChats();
+                renderPosts();
+                renderMembers();
+            }
+            renderRoomList();
+        }
+        if (e.key === 'discord_plaza_blacklist') {
+            blacklist = JSON.parse(e.newValue) || [];
+            checkUserAccess();
+        }
+        if (e.key === 'discord_plaza_global_admin_users') {
+            globalAdmins = JSON.parse(e.newValue) || [];
+            if (currentRoomId) {
+                renderMembers();
+            }
+        }
+    });
+
+    function openGlobalAdminModal() {
+        document.getElementById('global-admin-modal').classList.remove('hidden');
+        const isMeGlobal = isGlobalAdmin || isMemberGlobalAdmin(currentUser);
+        if (isMeGlobal) {
+            document.getElementById('admin-login-section').classList.add('hidden');
+            document.getElementById('admin-panel-section').classList.remove('hidden');
+            renderBlacklist();
+        } else {
+            document.getElementById('admin-login-section').classList.remove('hidden');
+            document.getElementById('admin-panel-section').classList.add('hidden');
+            document.getElementById('admin-password-input').value = "";
+        }
+    }
+
+    function closeGlobalAdminModal() {
+        document.getElementById('global-admin-modal').classList.add('hidden');
+    }
+
+    function checkAdminPassword() {
+        const pass = document.getElementById('admin-password-input').value;
+        if (pass === MASTER_ADMIN_PASSWORD) {
+            isGlobalAdmin = true;
+            sessionStorage.setItem('discord_plaza_global_admin', 'true');
+            
+            if (!globalAdmins.includes(currentUser)) {
+                globalAdmins.push(currentUser);
+                saveGlobalAdmins();
+            }
+
+            alert('👑 ブラウザ管理者としてログインしました！すべてのサーバーで無敵になり、誰でも自由にキック可能です。');
+            
+            closeGlobalAdminModal();
+            checkUserAccess();
+            
+            if (currentRoomId) {
+                const room = rooms.find(r => r.id === currentRoomId);
+                if (room && !room.members.includes(currentUser)) {
+                    room.members.push(currentUser);
+                    saveRooms();
+                }
+                updateRoomUIState();
+            }
+        } else {
+            alert('管理者パスワードが違います！');
+        }
+    }
+
+    function deactivateGlobalAdmin() {
+        if (confirm('ブラウザ管理者権限をオフにしますか？')) {
+            isGlobalAdmin = false;
+            sessionStorage.removeItem('discord_plaza_global_admin');
+            
+            globalAdmins = globalAdmins.filter(name => name !== currentUser);
+            saveGlobalAdmins();
+
+            closeGlobalAdminModal();
+            checkUserAccess();
+            if (currentRoomId) {
+                updateRoomUIState();
+            }
+            alert('ブラウザ管理者権限をオフにしました。');
+        }
+    }
+
+    function addToBlacklist() {
+        const name = document.getElementById('blacklist-input').value.trim();
+        if (!name) return;
+
+        if (!blacklist.includes(name)) {
+            blacklist.push(name);
+            saveBlacklist();
+            renderBlacklist();
+            document.getElementById('blacklist-input').value = '';
+            alert(`「${name}」をブラックリストに追加しました。`);
+        }
+    }
+
+    function removeFromBlacklist(name) {
+        blacklist = blacklist.filter(n => n !== name);
+        saveBlacklist();
+        renderBlacklist();
+        alert(`「${name}」をブラックリストから解除しました。`);
+    }
+
+    function renderBlacklist() {
+        const container = document.getElementById('blacklist-container');
+        container.innerHTML = '';
+
+        if (blacklist.length === 0) {
+            container.innerHTML = '<p style="text-align: center; color: var(--text-muted); font-size: 13px;">登録されている人はいません</p>';
+            return;
+        }
+
+        blacklist.forEach(name => {
+            const div = document.createElement('div');
+            div.className = 'blacklist-item';
+            div.innerHTML = `
+                <span>${escapeHtml(name)}</span>
+                <button class="back-btn" style="padding: 2px 8px; font-size: 11px; margin: 0;" onclick="removeFromBlacklist('${escapeHtml(name)}')">解除</button>
+            `;
+            container.appendChild(div);
+        });
+    }
+
+    function createRoom() {
+        const name = document.getElementById('new-room-name').value.trim();
+        const pass = document.getElementById('new-room-pass').value.trim();
+        const adminPass = document.getElementById('new-room-admin-pass').value.trim();
+        const limit = parseInt(document.getElementById('new-room-limit').value) || 5;
+
+        if (!name) {
+            alert('サーバー名を入力してください！');
+            return;
+        }
+
+        if (!adminPass) {
+            alert('「削除・管理パスワード」は必ず設定してください！');
+            return;
+        }
+
+        const newRoom = {
+            id: 'room_' + Date.now(),
+            name: name,
+            pass: pass,
+            adminPass: adminPass,
+            creator: currentUser,
+            admins: [],
+            limit: limit,
+            members: [],
+            chats: [],
+            posts: []
+        };
+
+        rooms.push(newRoom);
+        saveRooms();
+        
+        document.getElementById('new-room-name').value = '';
+        document.getElementById('new-room-pass').value = '';
+        document.getElementById('new-room-admin-pass').value = '';
+        renderRoomList();
+        alert('サーバーを作成しました！');
+    }
+
+    function renderRoomList() {
+        const listEl = document.getElementById('room-list');
+        listEl.innerHTML = '';
+
+        if (rooms.length === 0) {
+            listEl.innerHTML = '<p style="text-align: center; color: var(--text-muted);">作成されたサーバーはありません。</p>';
+            return;
+        }
+
+        rooms.forEach(room => {
+            const memberCount = room.members ? room.members.length : 0;
+            const div = document.createElement('div');
+            div.className = 'room-card';
+            
+            div.innerHTML = `
+                <div>
+                    <strong>${escapeHtml(room.name)}</strong><br>
+                    <span style="font-size: 12px; color: var(--text-muted);">オーナー: ${escapeHtml(room.creator || '不明')} | 定員: ${memberCount} / ${room.limit}人</span>
+                </div>
+                <div class="room-actions">
+                    <button style="width: auto; padding: 6px 14px;" onclick="openAuth('${room.id}')">入室する</button>
+                    <button class="danger-btn" style="width: auto; padding: 6px 14px;" onclick="promptDeleteRoom('${room.id}')">削除</button>
+                </div>
+            `;
+            listEl.appendChild(div);
+        });
+    }
+
+    function promptDeleteRoom(roomId) {
+        const room = rooms.find(r => r.id === roomId);
+        if (!room) return;
+
+        const isMeGlobal = isGlobalAdmin || isMemberGlobalAdmin(currentUser);
+        if (isMeGlobal) {
+            if (confirm(`【ブラウザ管理者権限】サーバー「${room.name}」を強制削除しますか？`)) {
+                rooms = rooms.filter(r => r.id !== roomId);
+                saveRooms();
+                renderRoomList();
+            }
+            return;
+        }
+
+        const inputPass = prompt(`【サーバー削除の確認】\n「${room.name}」を削除する管理パスワードを入力してください：`);
+        if (inputPass === null) return;
+
+        if (inputPass !== room.adminPass) {
+            alert('削除・管理パスワードが違います！');
+            return;
+        }
+
+        if (confirm(`本当にサーバー「${room.name}」を完全に削除しますか？`)) {
+            rooms = rooms.filter(r => r.id !== roomId);
+            saveRooms();
+            renderRoomList();
+        }
+    }
+
+    function promptDeleteCurrentRoom() {
+        const room = rooms.find(r => r.id === currentRoomId);
+        if (!room) return;
+
+        const isMeGlobal = isGlobalAdmin || isMemberGlobalAdmin(currentUser);
+        if (isMeGlobal) {
+            if (confirm(`【ブラウザ管理者権限】現在のサーバー「${room.name}」を強制削除しますか？`)) {
+                rooms = rooms.filter(r => r.id !== currentRoomId);
+                saveRooms();
+                goHome();
+                renderRoomList();
+            }
+            return;
+        }
+
+        const inputPass = prompt(`【サーバー削除の確認】\n「${room.name}」を削除する管理パスワードを入力してください：`);
+        if (inputPass === null) return;
+
+        if (inputPass !== room.adminPass) {
+            alert('削除・管理パスワードが違います！');
+            return;
+        }
+
+        if (confirm(`本当にサーバー「${room.name}」を完全に削除しますか？`)) {
+            rooms = rooms.filter(r => r.id !== currentRoomId);
+            saveRooms();
+            goHome();
+            renderRoomList();
+        }
+    }
+
+    function openAuth(roomId) {
+        currentRoomId = roomId;
+        const room = rooms.find(r => r.id === roomId);
+        
+        const isMeGlobal = isGlobalAdmin || isMemberGlobalAdmin(currentUser);
+        const isRoomAdmin = (room.creator === currentUser || (room.admins && room.admins.includes(currentUser)));
+        if (!room.pass || room.pass === "" || isMeGlobal || isRoomAdmin) {
+            enterRoomDirectly();
+            return;
+        }
+
+        document.getElementById('home-view').classList.add('hidden');
+        document.getElementById('auth-view').classList.remove('hidden');
+        document.getElementById('auth-room-title').innerText = `${room.name} へ入室`;
+        document.getElementById('enter-room-pass').value = '';
+    }
+
+    function verifyPassword() {
+        const inputPass = document.getElementById('enter-room-pass').value;
+        const room = rooms.find(r => r.id === currentRoomId);
+
+        if (room.pass !== inputPass) {
+            alert('入室パスワードが違います！');
+            return;
+        }
+
+        enterRoomDirectly();
+    }
+
+    function enterRoomDirectly() {
+        const room = rooms.find(r => r.id === currentRoomId);
+        
+        const isMeGlobal = isGlobalAdmin || isMemberGlobalAdmin(currentUser);
+        const isRoomAdmin = (room.creator === currentUser || (room.admins && room.admins.includes(currentUser)));
+        if (!room.members.includes(currentUser)) {
+            if (!isMeGlobal && !isRoomAdmin && room.members.length >= room.limit) {
+                alert('このサーバーは満員です！');
+                goHome();
+                return;
+            }
+            room.members.push(currentUser);
+            saveRooms();
+        }
+
+        document.getElementById('home-view').classList.add('hidden');
+        document.getElementById('auth-view').classList.add('hidden');
+        document.getElementById('room-view').classList.remove('hidden');
+        document.getElementById('current-room-title').innerText = room.name;
+        
+        updateRoomUIState();
+    }
+
+    function updateRoomUIState() {
+        const room = rooms.find(r => r.id === currentRoomId);
+        if (!room) return;
+
+        const isMeGlobal = isGlobalAdmin || isMemberGlobalAdmin(currentUser);
+        const badge = document.getElementById('admin-badge');
+        if (isMeGlobal) {
+            badge.classList.remove('hidden');
+        } else {
+            badge.classList.add('hidden');
+        }
+
+        const settingsPanel = document.getElementById('room-settings-panel');
+        if (isMeGlobal || room.creator === currentUser) {
+            settingsPanel.classList.remove('hidden');
+            document.getElementById('edit-room-limit').value = room.limit;
+        } else {
+            settingsPanel.classList.add('hidden');
+        }
+
+        renderChats();
+        renderPosts();
+        renderMembers();
+    }
+
+    function updateRoomLimit() {
+        const room = rooms.find(r => r.id === currentRoomId);
+        if (!room) return;
+
+        const newLimit = parseInt(document.getElementById('edit-room-limit').value);
+        if (!newLimit || newLimit < 1) {
+            alert('有効な人数を入力してください！');
+            return;
+        }
+
+        room.limit = newLimit;
+        saveRooms();
+        renderMembers();
+        alert(`定員を「${newLimit}人」に変更しました！`);
+    }
+
+    function leaveRoom() {
+        const room = rooms.find(r => r.id === currentRoomId);
+        if (room) {
+            room.members = room.members.filter(m => m !== currentUser);
+            saveRooms();
+        }
+        goHome();
+    }
+
+    function kickMember(memberName) {
+        const room = rooms.find(r => r.id === currentRoomId);
+        if (!room) return;
+
+        if (memberName === currentUser) {
+            alert('自分自身をキックすることはできません！');
+            return;
+        }
+
+        const isTargetGlobal = globalAdmins.includes(memberName);
+        const isMeGlobal = isGlobalAdmin || isMemberGlobalAdmin(currentUser);
+        const isOwner = (room.creator === currentUser);
+        const isAdmin = (room.admins && room.admins.includes(currentUser));
+
+        if (isAdmin && !isOwner && !isMeGlobal && memberName === room.creator) {
+            alert('管理者はオーナーをキックできません！');
+            return;
+        }
+
+        if (isTargetGlobal && !isMeGlobal) {
+            alert('ブラウザ管理者のためキックできませんでした');
+            return;
+        }
+
+        if (!confirm(`「${memberName}」を本当にキックしますか？`)) {
+            return;
+        }
+
+        room.members = room.members.filter(m => m !== memberName);
+        if (room.admins) {
+            room.admins = room.admins.filter(a => a !== memberName);
+        }
+        saveRooms();
+        renderMembers();
+        alert(`「${memberName}」をサーバーからキックしました！`);
+    }
+
+    function promoteAdmin(memberName) {
+        const room = rooms.find(r => r.id === currentRoomId);
+        if (!room) return;
+
+        if (!room.admins) room.admins = [];
+
+        if (room.admins.includes(memberName)) {
+            alert('すでに管理者です！');
+            return;
+        }
+
+        if (confirm(`「${memberName}」に管理者権限を付与しますか？`)) {
+            room.admins.push(memberName);
+            saveRooms();
+            renderMembers();
+            alert(`「${memberName}」を管理者に任命しました！`);
+        }
+    }
+
+    function demoteAdmin(memberName) {
+        const room = rooms.find(r => r.id === currentRoomId);
+        if (!room) return;
+
+        if (confirm(`「${memberName}」の管理者権限を解除しますか？`)) {
+            room.admins = room.admins.filter(a => a !== memberName);
+            saveRooms();
+            renderMembers();
+            alert(`「${memberName}」の管理者権限を解除しました。`);
+        }
+    }
+
+    function transferOwnership(newOwnerName) {
+        const room = rooms.find(r => r.id === currentRoomId);
+        if (!room) return;
+
+        if (confirm(`本当にサーバーのオーナー権限を「${newOwnerName}」に譲渡しますか？`)) {
+            if (!room.admins) room.admins = [];
+            if (!room.admins.includes(room.creator)) {
+                room.admins.push(room.creator);
+            }
+            room.admins = room.admins.filter(a => a !== newOwnerName);
+            
+            room.creator = newOwnerName;
+            saveRooms();
+            updateRoomUIState();
+            alert(`サーバーのオーナー権限を「${newOwnerName}」に譲渡しました！`);
+        }
+    }
+
+    function renderMembers() {
+        const room = rooms.find(r => r.id === currentRoomId);
+        if (!room) return;
+
+        const isMeGlobal = isGlobalAdmin || isMemberGlobalAdmin(currentUser);
+        if (!isMeGlobal && !room.members.includes(currentUser)) {
+            goHome();
+            return;
+        }
+
+        const container = document.getElementById('member-list-container');
+        const titleContainer = document.getElementById('member-count-title');
+        container.innerHTML = '';
+
+        let displayMembers = [...(room.members || [])];
+        
+        if (isMeGlobal && !displayMembers.includes(currentUser)) {
+            displayMembers.unshift(currentUser);
+        }
+
+        const count = room.members ? room.members.length : 0;
+        titleContainer.innerText = `🟢 参加中メンバー (${count}/${room.limit}人)`;
+
+        if (displayMembers.length === 0) {
+            container.innerHTML = '<p style="text-align: center; color: var(--text-muted); font-size: 12px;">誰もいません</p>';
+            return;
+        }
+
+        const isOwner = (room.creator === currentUser);
+        const isAdmin = (room.admins && room.admins.includes(currentUser));
+        const canManage = (isMeGlobal || isOwner || isAdmin);
+
+        displayMembers.forEach(member => {
+            const div = document.createElement('div');
+            div.className = 'member-item';
+            
+            const isTargetGlobal = globalAdmins.includes(member);
+            let badges = [];
+            
+            if (member === room.creator) {
+                badges.push('<span style="font-size: 10px; color: #5865F2; font-weight: bold;">(オーナー)</span>');
+            }
+            if (isTargetGlobal) {
+                badges.push('<span style="font-size: 10px; color: var(--admin-gold); font-weight: bold;">(ブラウザ管理者)</span>');
+            } else if (room.admins && room.admins.includes(member)) {
+                badges.push('<span style="font-size: 10px; color: var(--admin-gold); font-weight: bold;">(管理者)</span>');
+            }
+            const badgeText = badges.length > 0 ? ' ' + badges.join(' ') : '';
+
+            let actionButtons = '';
+            if (member !== currentUser && canManage) {
+                const isTargetOwner = (member === room.creator);
+                const showKick = isMeGlobal || isOwner || !isTargetOwner;
+
+                const safeMemberName = member.replace(/'/g, "\\'");
+                if (showKick) {
+                    actionButtons += `<button class="danger-btn" style="padding: 2px 6px; font-size: 10px; width: auto; margin-top: 4px;" onclick="kickMember('${safeMemberName}')">キック</button> `;
+                }
+
+                if (isMeGlobal || isOwner) {
+                    if (room.admins && room.admins.includes(member)) {
+                        actionButtons += `<button class="back-btn" style="padding: 2px 6px; font-size: 10px; width: auto; margin-top: 4px; background-color: #ed4245;" onclick="demoteAdmin('${safeMemberName}')">権限剥奪</button> `;
+                    } else {
+                        actionButtons += `<button style="padding: 2px 6px; font-size: 10px; width: auto; margin-top: 4px; background-color: var(--admin-gold); color: #000;" onclick="promoteAdmin('${safeMemberName}')">管理者にする</button> `;
+                    }
+                    actionButtons += `<button style="padding: 2px 6px; font-size: 10px; width: auto; margin-top: 4px; background-color: #5865F2;" onclick="transferOwnership('${safeMemberName}')">オーナー譲渡</button>`;
+                }
+            }
+
+            div.innerHTML = `
+                <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                    <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex-grow: 1;">👤 ${escapeHtml(member)}${badgeText}</span>
+                </div>
+                ${actionButtons ? `<div style="margin-top: 4px; display: flex; gap: 4px; flex-wrap: wrap;">${actionButtons}</div>` : ''}
+            `;
+            container.appendChild(div);
+        });
+    }
+
+    function sendChat() {
+        const input = document.getElementById('chat-input');
+        const text = input.value.trim();
+        if (!text) return;
+
+        const room = rooms.find(r => r.id === currentRoomId);
+        if (!room) return;
+
+        room.chats.push({
+            id: 'chat_' + Date.now() + '_' + Math.random(),
+            user: currentUser,
+            text: text,
+            date: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        });
+        saveRooms();
+
+        input.value = '';
+        renderChats();
+    }
+
+    function handleChatKey(e) {
+        if (e.key === 'Enter') {
+            sendChat();
+        }
+    }
+
+    function deleteChat(chatId, chatUser) {
+        const room = rooms.find(r => r.id === currentRoomId);
+        if (!room) return;
+
+        const isMeGlobal = isGlobalAdmin || isMemberGlobalAdmin(currentUser);
+        const isRoomAdmin = (isMeGlobal || room.creator === currentUser || (room.admins && room.admins.includes(currentUser)));
+        if (!isRoomAdmin && chatUser !== currentUser) {
+            alert('自分が送信したメッセージか、サーバー管理者しか削除できません！');
+            return;
+        }
+
+        room.chats = room.chats.filter(c => c.id !== chatId);
+        saveRooms();
+        renderChats();
+    }
+
+    function renderChats() {
+        const room = rooms.find(r => r.id === currentRoomId);
+        if (!room) return;
+
+        const container = document.getElementById('chat-container');
+        container.innerHTML = '';
+
+        if (!room.chats || room.chats.length === 0) {
+            container.innerHTML = '<p style="text-align: center; color: var(--text-muted); font-size: 13px; margin: auto;">まだメッセージはありません。会話を始めよう！</p>';
+            return;
+        }
+
+        const isMeGlobal = isGlobalAdmin || isMemberGlobalAdmin(currentUser);
+        const isRoomAdmin = (isMeGlobal || room.creator === currentUser || (room.admins && room.admins.includes(currentUser)));
+
+        room.chats.forEach(chat => {
+            const div = document.createElement('div');
+            div.className = 'chat-msg';
+            
+            const canDelete = (isRoomAdmin || chat.user === currentUser);
+            const deleteBtnHtml = canDelete 
+                ? `<button class="danger-btn" style="width: auto; padding: 2px 8px; font-size: 11px; margin-left: 10px;" onclick="deleteChat('${chat.id}', '${escapeHtml(chat.user)}')">削除</button>` 
+                : '';
+
+            div.innerHTML = `
+                <div style="flex-grow: 1;">
+                    <div><span class="chat-user">${escapeHtml(chat.user)}</span> <span style="font-size: 11px; color: var(--text-muted);">${chat.date}</span></div>
+                    <div style="margin-top: 4px; word-break: break-all;">${escapeHtml(chat.text)}</div>
+                </div>
+                ${deleteBtnHtml}
+            `;
+            container.appendChild(div);
+        });
+        container.scrollTop = container.scrollHeight;
+    }
+
+    function handleCameraCapture(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        const room = rooms.find(r => r.id === currentRoomId);
+        if (!room) return;
+
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const desc = document.getElementById('post-desc').value.trim();
+            const newPost = {
+                id: 'post_' + Date.now() + '_cam',
+                user: currentUser,
+                mediaUrl: e.target.result,
+                mediaType: 'image',
+                desc: desc || '📸 カメラで撮影した写真',
+                date: new Date().toLocaleString()
+            };
+
+            room.posts.unshift(newPost);
+            saveRooms();
+            document.getElementById('post-desc').value = '';
+            document.getElementById('camera-file').value = '';
+            renderPosts();
+            alert('カメラで撮影した写真を投稿しました！');
+        };
+        reader.readAsDataURL(file);
+    }
+
+    function createPosts() {
+        const fileInput = document.getElementById('post-files');
+        const desc = document.getElementById('post-desc').value.trim();
+
+        if (fileInput.files.length === 0) {
+            alert('写真か動画ファイルを1つ以上選択してください！');
+            return;
+        }
+
+        if (fileInput.files.length > 5) {
+            alert('一度に選択できるのは最大5個までです！');
+            return;
+        }
+
+        const room = rooms.find(r => r.id === currentRoomId);
+        if (!room) return;
+
+        let filesProcessed = 0;
+        const files = Array.from(fileInput.files);
+
+        files.forEach((file, index) => {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const newPost = {
+                    id: 'post_' + Date.now() + '_' + index,
+                    user: currentUser,
+                    mediaUrl: e.target.result,
+                    mediaType: file.type.startsWith('video') ? 'video' : 'image',
+                    desc: desc,
+                    date: new Date().toLocaleString()
+                };
+
+                room.posts.unshift(newPost);
+                filesProcessed++;
+
+                if (filesProcessed === files.length) {
+                    saveRooms();
+                    fileInput.value = '';
+                    document.getElementById('post-desc').value = '';
+                    renderPosts();
+                }
+            };
+            reader.readAsDataURL(file);
+        });
+    }
+
+    function deletePost(postId, postUser) {
+        const room = rooms.find(r => r.id === currentRoomId);
+        if (!room) return;
+
+        const isMeGlobal = isGlobalAdmin || isMemberGlobalAdmin(currentUser);
+        const isRoomAdmin = (isMeGlobal || room.creator === currentUser || (room.admins && room.admins.includes(currentUser)));
+        if (!isRoomAdmin && postUser !== currentUser) {
+            alert('自分が投稿した内容か、サーバー管理者しか削除できません！');
+            return;
+        }
+
+        room.posts = room.posts.filter(p => p.id !== postId);
+        saveRooms();
+        renderPosts();
+    }
+
+    function renderPosts() {
+        const room = rooms.find(r => r.id === currentRoomId);
+        if (!room) return;
+
+        const container = document.getElementById('posts-container');
+        container.innerHTML = '';
+
+        if (!room.posts || room.posts.length === 0) {
+            container.innerHTML = '<p style="text-align: center; color: var(--text-muted);">まだ投稿はありません。</p>';
+            return;
+        }
+
+        const isMeGlobal = isGlobalAdmin || isMemberGlobalAdmin(currentUser);
+        const isRoomAdmin = (isMeGlobal || room.creator === currentUser || (room.admins && room.admins.includes(currentUser)));
+
+        room.posts.forEach(post => {
+            const div = document.createElement('div');
+            div.className = 'post-card';
+            
+            const mediaHtml = post.mediaType === 'video' 
+                ? `<video src="${post.mediaUrl}" controls class="post-media"></video>`
+                : `<img src="${post.mediaUrl}" class="post-media">`;
+
+            const canDelete = (isRoomAdmin || post.user === currentUser);
+            const deleteBtnHtml = canDelete
+                ? `<button class="danger-btn" style="width: auto; padding: 2px 8px; font-size: 11px;" onclick="deletePost('${post.id}', '${escapeHtml(post.user)}')">この投稿を削除</button>`
+                : '';
+
+            div.innerHTML = `
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                    <span style="font-size: 12px; color: var(--text-muted);">投稿者: <strong style="color: #5865F2;">${escapeHtml(post.user)}</strong> (${post.date})</span>
+                    ${deleteBtnHtml}
+                </div>
+                <p style="white-space: pre-wrap; margin-top: 0;">${escapeHtml(post.desc)}</p>
+                ${mediaHtml}
+            `;
+            container.appendChild(div);
+        });
+    }
+
+    function escapeHtml(str) {
+        if (!str) return '';
+        return str.replace(/[&'`<>"]/g, function (match) {
+            return {
+                '&': '&amp;',
+                "'": '&#x27;',
+                '`': '&#x60;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+            }[match]
+        });
+    }
+</script>
+
+</body>
+</html>
